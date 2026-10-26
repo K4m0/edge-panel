@@ -6,6 +6,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using EdgePanel.Tray;
 using Forms = System.Windows.Forms;
 
 namespace EdgePanel;
@@ -85,7 +86,7 @@ public partial class App : System.Windows.Application
     {
         var menu = new Forms.ContextMenuStrip();
 
-        var guard = new Forms.ToolStripMenuItem("Block mouse on Edge") { CheckOnClick = true };
+        var guard = TrayMenuRenderer.Item("Block mouse on Edge", '\uE962', checkable: true);
         guard.CheckedChanged += (_, _) =>
         {
             if (panel.MouseGuardEnabled == guard.Checked) return; // refresh from menu.Opening, not a user click
@@ -93,7 +94,7 @@ public partial class App : System.Windows.Application
             SaveQuietly();
         };
 
-        var evict = new Forms.ToolStripMenuItem("Keep other windows off Edge") { CheckOnClick = true };
+        var evict = TrayMenuRenderer.Item("Keep windows off Edge", '\uE923', checkable: true);
         evict.CheckedChanged += (_, _) =>
         {
             if (panel.EvictWindowsEnabled == evict.Checked) return;
@@ -101,14 +102,14 @@ public partial class App : System.Windows.Application
             SaveQuietly();
         };
 
-        var desktop = new Forms.ToolStripMenuItem("Desktop mode (hide panel)") { CheckOnClick = true };
+        var desktop = TrayMenuRenderer.Item("Desktop mode", '\uE7F4', checkable: true);
         desktop.CheckedChanged += (_, _) =>
         {
             if (panel.DesktopMode == desktop.Checked) return;
             panel.SetDisplayMode(desktop.Checked ? DisplayModes.Desktop : DisplayModes.Panel); // saves via DisplayModeChanged
         };
 
-        var startup = new Forms.ToolStripMenuItem("Start with Windows") { CheckOnClick = true };
+        var startup = TrayMenuRenderer.Item("Start with Windows", '\uE768', checkable: true);
         startup.CheckedChanged += (_, _) =>
         {
             if (startup.Checked != WindowsStartup.IsEnabled()) WindowsStartup.Apply(startup.Checked, _config.RunAsAdmin);
@@ -123,9 +124,20 @@ public partial class App : System.Windows.Application
             startup.Checked = WindowsStartup.IsEnabled();
         };
 
-        var settings = new Forms.ToolStripMenuItem("Settings…", null, (_, _) => OpenSettings());
-        settings.Font = new Font(settings.Font, System.Drawing.FontStyle.Bold);
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3);
+        var header = new Forms.ToolStripLabel($"Edge Panel  ·  v{version}{(WindowsStartup.IsElevated ? "  ·  admin" : "")}")
+        {
+            ForeColor = TrayMenuRenderer.Muted,
+            Font = new Font("Segoe UI", 8.5f),
+            Padding = new Forms.Padding(2, 4, 0, 4),
+        };
 
+        var settings = TrayMenuRenderer.Item("Settings", '', (_, _) => OpenSettings());
+        settings.Font = new Font("Segoe UI Semibold", 10f);
+        var exit = TrayMenuRenderer.Item("Exit", '', (_, _) => Shutdown());
+        exit.Tag = "danger";
+
+        menu.Items.Add(header);
         menu.Items.Add(settings);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(desktop);
@@ -133,10 +145,11 @@ public partial class App : System.Windows.Application
         menu.Items.Add(evict);
         menu.Items.Add(startup);
         menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add("Re-detect Edge", null, (_, _) => panel.Reposition("tray"));
-        menu.Items.Add("Open log", null, (_, _) => Process.Start(new ProcessStartInfo(Log.FilePath) { UseShellExecute = true }));
+        menu.Items.Add(TrayMenuRenderer.Item("Re-detect Edge", '', (_, _) => panel.Reposition("tray")));
+        menu.Items.Add(TrayMenuRenderer.Item("Open log", '', (_, _) => Process.Start(new ProcessStartInfo(Log.FilePath) { UseShellExecute = true })));
         menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add("Exit", null, (_, _) => Shutdown());
+        menu.Items.Add(exit);
+        TrayMenuRenderer.Style(menu);
 
         var tray = new Forms.NotifyIcon
         {
