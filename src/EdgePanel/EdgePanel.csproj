@@ -11,7 +11,10 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>EdgePanel</AssemblyName>
     <RootNamespace>EdgePanel</RootNamespace>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
+    <ApplicationIcon>Assets\edge-panel.ico</ApplicationIcon>
+    <Product>Edge Panel</Product>
+    <Description>Lightweight touch dashboard for the Corsair XENEON EDGE</Description>
     <!-- DPI awareness lives in app.manifest on purpose: WPF owns the window, WinForms is only used for the tray icon. -->
     <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
@@ -19,6 +22,20 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.2903.40" />
     <PackageReference Include="LibreHardwareMonitorLib" Version="0.9.4" />
+  </ItemGroup>
+
+  <!-- Single-file, self-contained exe: dotnet publish -c Release (see README). -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <DebugType>none</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Assets\edge-panel.ico" LogicalName="EdgePanel.Assets.edge-panel.ico" />
   </ItemGroup>
 
   <ItemGroup>

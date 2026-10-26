@@ -32,8 +32,11 @@ html, body {
   padding: var(--gap);
   display: grid;
   gap: var(--gap);
-  grid-template-columns: 1.3fr 0.8fr 0.8fr 0.8fr 1.7fr 1.6fr;
+  /* Set from the widget sizes in Settings. */
+  grid-template-columns: var(--tracks, 1fr);
 }
+
+.empty { display: grid; place-items: center; color: var(--muted); font-size: clamp(14px, 4vh, 28px); }
 
 .card {
   background: var(--card);
@@ -126,11 +129,10 @@ button.primary:active { background: #d9b23d; }
 /* Portrait mount (Edge rotated 90°) */
 @media (orientation: portrait) {
   .grid {
-    grid-template-columns: 1fr 1fr 1fr;
-    grid-template-rows: 0.9fr 0.7fr 1.1fr 1.2fr;
+    grid-template-columns: 1fr;
+    grid-template-rows: var(--tracks, 1fr);
   }
-  .clock { grid-column: 1 / -1; }
-  .media, .shortcuts { grid-column: 1 / -1; }
-  .ring { width: min(100%, 22vw); }
+  .gauge { grid-template-columns: auto 1fr auto; grid-template-rows: 1fr; align-items: center; }
+  .ring { width: auto; height: 100%; max-height: 22vw; }
   .time { font-size: 18vw; }
 }

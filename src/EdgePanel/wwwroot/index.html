@@ -7,53 +7,40 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <main class="grid">
+  <!-- Widgets are built from these templates in the order and sizes set in Settings. -->
+  <main id="grid" class="grid"></main>
+
+  <template id="tpl-clock">
     <section class="card clock">
-      <div id="time" class="time">--:--</div>
-      <div id="seconds" class="seconds">--</div>
-      <div id="date" class="date">&nbsp;</div>
+      <div class="time">--:--</div>
+      <div class="seconds">--</div>
+      <div class="date">&nbsp;</div>
     </section>
+  </template>
 
-    <section class="card gauge" data-sensor="cpu">
-      <h2>CPU</h2>
+  <template id="tpl-gauge">
+    <section class="card gauge">
+      <h2></h2>
       <svg viewBox="0 0 120 120" class="ring">
         <circle class="track" cx="60" cy="60" r="50" />
         <circle class="value" cx="60" cy="60" r="50" />
       </svg>
       <div class="readout"><span class="load">--</span><small>%</small></div>
-      <div class="sub temp">-- °C</div>
+      <div class="sub">&nbsp;</div>
     </section>
+  </template>
 
-    <section class="card gauge" data-sensor="gpu">
-      <h2>GPU</h2>
-      <svg viewBox="0 0 120 120" class="ring">
-        <circle class="track" cx="60" cy="60" r="50" />
-        <circle class="value" cx="60" cy="60" r="50" />
-      </svg>
-      <div class="readout"><span class="load">--</span><small>%</small></div>
-      <div class="sub temp">-- °C</div>
-    </section>
-
-    <section class="card gauge" data-sensor="ram">
-      <h2>RAM</h2>
-      <svg viewBox="0 0 120 120" class="ring">
-        <circle class="track" cx="60" cy="60" r="50" />
-        <circle class="value" cx="60" cy="60" r="50" />
-      </svg>
-      <div class="readout"><span class="load">--</span><small>%</small></div>
-      <div class="sub temp">-- / -- GB</div>
-    </section>
-
+  <template id="tpl-media">
     <section class="card media">
       <div class="now">
-        <div id="media-title" class="title">Nothing playing</div>
-        <div id="media-artist" class="artist">&nbsp;</div>
+        <div class="title">Nothing playing</div>
+        <div class="artist">&nbsp;</div>
       </div>
       <div class="controls">
         <button data-media="prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM20 6v12L9.5 12z"/></svg></button>
         <button data-media="toggle" class="primary" aria-label="Play or pause">
-          <svg id="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-          <svg id="icon-pause" viewBox="0 0 24 24" hidden><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+          <svg class="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+          <svg class="icon-pause" viewBox="0 0 24 24" hidden><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
         </button>
         <button data-media="next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM4 6v12l10.5-6z"/></svg></button>
       </div>
@@ -63,12 +50,15 @@
         <button data-volume="up" aria-label="Volume up"><svg viewBox="0 0 24 24"><path d="M5 9v6h4l5 5V4L9 9zM16.5 12A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg><span>+</span></button>
       </div>
     </section>
+  </template>
 
+  <template id="tpl-shortcuts">
     <section class="card shortcuts">
-      <div id="shortcuts" class="shortcut-grid"></div>
+      <div class="shortcut-grid"></div>
     </section>
-  </main>
+  </template>
 
+  <script src="icons.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

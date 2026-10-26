@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Edge Panel Settings</title>
+  <link rel="stylesheet" href="settings.css">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Edge Panel</h1>
+      <p class="muted" id="version">&nbsp;</p>
+    </div>
+    <nav role="tablist">
+      <button role="tab" data-tab="layout" aria-selected="true">Layout</button>
+      <button role="tab" data-tab="shortcuts">Shortcuts</button>
+      <button role="tab" data-tab="general">General</button>
+    </nav>
+  </header>
+
+  <main>
+    <!-- Layout -->
+    <section id="tab-layout" class="tab">
+      <h2>Preview</h2>
+      <div id="preview" class="preview"></div>
+      <h2>Widgets</h2>
+      <p class="muted">Drag rows (or use the arrows) to reorder. Size is the relative width on the panel.</p>
+      <ul id="widget-list" class="list"></ul>
+    </section>
+
+    <!-- Shortcuts -->
+    <section id="tab-shortcuts" class="tab" hidden>
+      <div class="row-between">
+        <h2>Launcher buttons</h2>
+        <label class="inline">Columns
+          <input id="shortcut-columns" type="number" min="1" max="6" step="1">
+        </label>
+      </div>
+      <p class="muted">Target can be a program, a file, a URL or an app link such as <code>spotify:</code> or <code>steam://open/main</code>.</p>
+      <ul id="shortcut-list" class="list"></ul>
+      <button id="add-shortcut" class="ghost">+ Add shortcut</button>
+    </section>
+
+    <!-- General -->
+    <section id="tab-general" class="tab" hidden>
+      <h2>Startup</h2>
+      <label class="switch-row">
+        <span><strong>Start with Windows</strong><small>Launch Edge Panel when you sign in.</small></span>
+        <input type="checkbox" id="startWithWindows" class="switch">
+      </label>
+
+      <h2>Behavior</h2>
+      <label class="switch-row">
+        <span><strong>Block mouse on the Edge</strong><small>The mouse can't enter the Edge. Touch still works.</small></span>
+        <input type="checkbox" id="mouseGuard" class="switch">
+      </label>
+      <label class="switch-row">
+        <span><strong>Keep other windows off the Edge</strong><small>Windows that land on the Edge move back to the main display.</small></span>
+        <input type="checkbox" id="evictWindows" class="switch">
+      </label>
+      <label class="switch-row">
+        <span><strong>Don't take focus when touched</strong><small>Your game or app stays in the foreground.</small></span>
+        <input type="checkbox" id="noActivate" class="switch">
+      </label>
+
+      <h2>Advanced</h2>
+      <div class="fields">
+        <label>Monitor name contains
+          <input type="text" id="monitorName" spellcheck="false">
+        </label>
+        <label>Sensor refresh (ms)
+          <input type="number" id="sensorIntervalMs" min="250" max="10000" step="250">
+        </label>
+        <label class="switch-row compact">
+          <span><strong>Developer tools</strong><small>F12 on the panel. Applies after restart.</small></span>
+          <input type="checkbox" id="devTools" class="switch">
+        </label>
+      </div>
+      <p class="muted">Settings file: <code id="config-path"></code></p>
+      <button id="open-folder" class="ghost">Open settings folder</button>
+    </section>
+  </main>
+
+  <footer>
+    <span id="status" class="status" role="status"></span>
+    <button id="close" class="ghost">Close</button>
+    <button id="save" class="primary">Save</button>
+  </footer>
+
+  <script src="icons.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>

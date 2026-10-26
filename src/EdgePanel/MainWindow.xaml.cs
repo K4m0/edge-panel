@@ -19,11 +19,9 @@ namespace EdgePanel;
 
 public partial class MainWindow : Window
 {
-    private const string VirtualHost = "edge.panel";
-
     private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
-    private readonly AppConfig _config;
+    private AppConfig _config;
     private readonly MouseGuard _mouseGuard;
     private readonly MediaReader _media = new();
     private readonly DispatcherTimer _watchdog;
@@ -67,10 +65,7 @@ public partial class MainWindow : Window
         base.OnSourceInitialized(e);
         _hwnd = new WindowInteropHelper(this).Handle;
 
-        var ex = GetWindowLongPtr(_hwnd, GWL_EXSTYLE).ToInt64() | WS_EX_TOOLWINDOW;
-        if (_config.NoActivate) ex |= WS_EX_NOACTIVATE;
-        SetWindowLongPtr(_hwnd, GWL_EXSTYLE, new IntPtr(ex));
-
+        ApplyWindowStyles();
         HwndSource.FromHwnd(_hwnd)?.AddHook(WndProc);
 
         EvictWindowsEnabled = _config.EvictWindows;
@@ -81,6 +76,31 @@ public partial class MainWindow : Window
         _ = InitWebViewAsync();
         _ = Task.Run(() => TelemetryLoopAsync(_cts.Token));
     }
+
+    private void ApplyWindowStyles()
+    {
+        var ex = GetWindowLongPtr(_hwnd, GWL_EXSTYLE).ToInt64() | WS_EX_TOOLWINDOW;
+        ex = _config.NoActivate ? ex | WS_EX_NOACTIVATE : ex & ~WS_EX_NOACTIVATE;
+        SetWindowLongPtr(_hwnd, GWL_EXSTYLE, new IntPtr(ex));
+    }
+
+    /// <summary>Applies settings saved from the settings window without restarting.</summary>
+    public void ApplyConfig(AppConfig config)
+    {
+        _config = config;
+        _mouseGuard.Enabled = config.MouseGuard;
+        EvictWindowsEnabled = config.EvictWindows;
+        if (_hwnd != IntPtr.Zero) ApplyWindowStyles();
+        if (_webReady) PostLayout();
+        Reposition("settings");
+    }
+
+    private void PostLayout() => Post("config", new
+    {
+        widgets = _config.Widgets.Where(w => w.Enabled).Select(w => new { w.Type, w.Size }),
+        _config.ShortcutColumns,
+        shortcuts = _config.Shortcuts.Select((s, i) => new { id = i, s.Label, s.Icon }),
+    });
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
@@ -155,25 +175,9 @@ public partial class MainWindow : Window
     {
         try
         {
-            var dataDir = Path.Combine(Log.Directory, "WebView2");
-            var env = await CoreWebView2Environment.CreateAsync(null, dataDir);
-            await Web.EnsureCoreWebView2Async(env);
-
-            var core = Web.CoreWebView2;
-            var s = core.Settings;
-            s.AreDefaultContextMenusEnabled = false;
-            s.AreDevToolsEnabled = _config.DevTools;
-            s.AreBrowserAcceleratorKeysEnabled = _config.DevTools;
-            s.IsZoomControlEnabled = false;
-            s.IsPinchZoomEnabled = false;
-            s.IsSwipeNavigationEnabled = false;
-            s.IsStatusBarEnabled = false;
             Web.DefaultBackgroundColor = System.Drawing.Color.Black;
-
-            core.SetVirtualHostNameToFolderMapping(VirtualHost,
-                Path.Combine(AppContext.BaseDirectory, "wwwroot"), CoreWebView2HostResourceAccessKind.DenyCors);
-            core.WebMessageReceived += OnWebMessage;
-            core.Navigate($"https://{VirtualHost}/index.html");
+            Web.CoreWebView2InitializationCompleted += (_, _) => Web.CoreWebView2.WebMessageReceived += OnWebMessage;
+            await WebHost.InitAsync(Web, "index.html", _config.DevTools);
         }
         catch (Exception ex)
         {
@@ -194,7 +198,7 @@ public partial class MainWindow : Window
             {
                 case "ready":
                     _webReady = true;
-                    Post("config", new { shortcuts = _config.Shortcuts.Select((s, i) => new { id = i, s.Label, s.Icon }) });
+                    PostLayout();
                     break;
                 case "media" when action is not null:
                     _ = _media.CommandAsync(action);

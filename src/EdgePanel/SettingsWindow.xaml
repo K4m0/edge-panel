@@ -1,0 +1,11 @@
+<Window x:Class="EdgePanel.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
+        Title="Edge Panel Settings"
+        Width="980" Height="760"
+        MinWidth="720" MinHeight="520"
+        WindowStartupLocation="CenterScreen"
+        Background="#0b0e13">
+    <wv2:WebView2 x:Name="Web" />
+</Window>

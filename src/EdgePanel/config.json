@@ -1,25 +1,33 @@
 {
+  // Default settings, copied to %LOCALAPPDATA%\EdgePanel\config.json on first save.
+  // Edit them from the tray icon > Settings.
+
   // How the Edge is found. The friendly name comes from the monitor's EDID.
-  // If your Edge reports a different name, check the log (tray > Open log) and adjust.
   "monitor": {
     "nameContains": "XENEON EDGE",
     "fallbackWidth": 2560,
     "fallbackHeight": 720
   },
 
-  // Keep the physical mouse out of the Edge; touch still works.
   "mouseGuard": true,
-
-  // Push other apps' windows that land on the Edge back to the main display.
   "evictWindows": true,
-
-  // Touching the panel does not take focus away from the active app (games keep focus).
   "noActivate": true,
-
   "sensorIntervalMs": 1000,
   "devTools": false,
 
-  // Launcher buttons. "target" is anything Windows can open: exe path, URL or URI scheme.
+  // Left to right. "size" is the relative width of each widget.
+  "widgets": [
+    { "type": "clock", "enabled": true, "size": 1.3 },
+    { "type": "cpu", "enabled": true, "size": 0.8 },
+    { "type": "gpu", "enabled": true, "size": 0.8 },
+    { "type": "ram", "enabled": true, "size": 0.8 },
+    { "type": "media", "enabled": true, "size": 1.7 },
+    { "type": "shortcuts", "enabled": true, "size": 1.6 }
+  ],
+
+  "shortcutColumns": 3,
+
+  // "target" is anything Windows can open: exe path, URL or URI scheme.
   "shortcuts": [
     { "label": "Spotify", "icon": "music", "target": "spotify:" },
     { "label": "Discord", "icon": "chat", "target": "discord:" },
