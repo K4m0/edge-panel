@@ -34,6 +34,7 @@ public partial class MainWindow : Window
     private AppConfig _config;
     private readonly MouseGuard _mouseGuard;
     private readonly MediaReader _media = new();
+    private readonly StreamDeckDock _streamDeck = new();
     private readonly AudioService _audio = new();
     private readonly DisplayControl _display = new();
     private readonly DispatcherTimer _watchdog;
@@ -181,6 +182,7 @@ public partial class MainWindow : Window
 
         if (edge is null || DesktopMode)
         {
+            _streamDeck.Release();
             _mouseGuard.SetZone(null, default);
             if (IsVisible) Hide();
             return;
@@ -203,10 +205,39 @@ public partial class MainWindow : Window
         if (_edge is not { } edge || _hwnd == IntPtr.Zero || DesktopMode) return;
         var b = edge.Bounds;
         SetWindowPos(_hwnd, HWND_TOPMOST, b.Left, b.Top, b.Width, b.Height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        _streamDeck.Apply(); // the panel just became the top-most window; put the deck back above it
+    }
+
+    /// <summary>
+    /// The Stream Deck widget reports its box in CSS pixels ({x,y,w,h,dpr}) or rect:null when hidden.
+    /// CSS pixels × devicePixelRatio = physical pixels, offset by the Edge's position.
+    /// </summary>
+    private void DockStreamDeck(JsonElement root)
+    {
+        if (_edge is not { } edge || DesktopMode
+            || !root.TryGetProperty("rect", out var r) || r.ValueKind != JsonValueKind.Object)
+        {
+            _streamDeck.SetTarget(null);
+            return;
+        }
+
+        var dpr = r.TryGetProperty("dpr", out var d) && d.TryGetDouble(out var v) && v > 0 ? v : 1;
+        int Px(string key) => (int)Math.Round(r.GetProperty(key).GetDouble() * dpr);
+        var b = edge.Bounds;
+        var found = _streamDeck.SetTarget(new RECT
+        {
+            Left = b.Left + Px("x"),
+            Top = b.Top + Px("y"),
+            Right = b.Left + Px("x") + Px("w"),
+            Bottom = b.Top + Px("y") + Px("h"),
+        });
+        // Lets the widget hide its setup hint once the real deck covers it.
+        Post(new { type = "dockState", widgetId = Str(root, "widgetId"), found });
     }
 
     private void Watchdog()
     {
+        _streamDeck.Apply(); // Stream Deck may recreate or move its window; also keeps it above the panel
         // Catch topology changes Windows did not announce, and drift caused by other apps.
         var monitors = MonitorLocator.GetMonitors();
         var edge = MonitorLocator.FindEdge(monitors, _config.Monitor);
@@ -288,6 +319,9 @@ public partial class MainWindow : Window
                     break;
                 case "page" when Int(root, "index") is { } page:
                     _currentPage = page;
+                    break;
+                case "dock":
+                    DockStreamDeck(root);
                     break;
             }
         }
@@ -565,6 +599,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _streamDeck.Release();
         _cts.Cancel();
         _watchdog.Stop();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;

@@ -26,7 +26,7 @@ Each page is a 4 × 2 grid. Widgets come in sizes **S** (1×1), **Wide** (2×1),
 | System | 2 Sensors, Sensor (gauge or value), Sensor Chart, Sensor List. These can use any sensor LibreHardwareMonitor sees: CPU, GPU, RAM, motherboard, drives, network, fans and AIO coolers |
 | Media | Media (album art, playback controls), Volume (output device switcher, mic, per-app volume mixer), Image / Video, Slideshow, YouTube Video |
 | Web | Web URL, iFrame (custom HTML), Twitch Chat, SimHub, Weather, AQI (Weather and AQI use [Open-Meteo](https://open-meteo.com), no API key) |
-| Control | Launch App (real app icons), Button Deck (keystrokes, apps, media keys, URLs, typed text, page switching), Virtual Keyboard, Virtual Touchpad |
+| Control | Stream Deck (docks Elgato's Virtual Stream Deck with your own profile), Launch App (real app icons), Button Deck (keystrokes, apps, media keys, URLs, typed text, page switching), Virtual Keyboard, Virtual Touchpad |
 | Fun | Decision Coin |
 
 ## Settings
@@ -47,7 +47,7 @@ The tray menu also has quick toggles: block mouse, keep windows off, desktop mod
 
 These iCUE features need a vendor SDK or Windows features that are unavailable to apps like this one:
 
-- **Stream Deck integration** needs the Elgato SDK. Use **Button Deck** instead.
+- **iCUE's own Stream Deck device** is private to iCUE. Instead, create a Virtual Stream Deck in Stream Deck 7+ (*Devices → Add Virtual Device*, then show it with the eye icon). The **Stream Deck** widget docks that window on the Edge. Its key size is set in Stream Deck.
 - **FPS counter** needs PresentMon or RTSS.
 - **Windows notifications** require package identity.
 - **Auto rotation**: rotate the Edge in Windows display settings. The panel switches to a portrait layout by itself.

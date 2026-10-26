@@ -41,6 +41,10 @@ public static class WebHost
         Directory.CreateDirectory(MediaFolder);
         view.CoreWebView2.SetVirtualHostNameToFolderMapping(MediaHost, MediaFolder, CoreWebView2HostResourceAccessKind.Allow);
 
+        // The pages are served from a fixed virtual host, so after an update WebView2's HTTP cache can keep
+        // serving old scripts/styles. They are local files; drop the cache on every start.
+        await view.CoreWebView2.Profile.ClearBrowsingDataAsync(CoreWebView2BrowsingDataKinds.DiskCache | CoreWebView2BrowsingDataKinds.CacheStorage);
+
         view.CoreWebView2.Navigate($"https://{VirtualHost}/{page}");
     }
 }

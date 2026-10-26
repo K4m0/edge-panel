@@ -140,6 +140,7 @@ Every message is JSON `{ type, ... }`. Pages send with `chrome.webview.postMessa
 | `appIcons` | `data: { "<widgetId>:<index>": dataUrl }`, icons for launcher apps and deck buttons whose action is `launch`. Sent after each `config` |
 | `goto` | `index`: show this page |
 | `nav` | `dir`: +1 or -1 (from hotkeys) |
+| `dockState` | `widgetId, found`: reply to `dock`, whether the Virtual Stream Deck window exists |
 
 ### Panel → host
 
@@ -154,6 +155,7 @@ Every message is JSON `{ type, ... }`. Pages send with `chrome.webview.postMessa
 | `text` | `text: "hello"` | SendInput unicode typing |
 | `pointer` | `dx, dy` (relative move), or `click: left\|right\|middle`, or `down/up: left`, or `scroll: dy` | SendInput mouse (virtual touchpad) |
 | `page` | `index` | host remembers the current page, so hotkeys stay in sync |
+| `dock` | `widgetId, rect: {x, y, w, h, dpr}` (CSS px in the panel viewport) or `rect: null` | move Elgato's Virtual Stream Deck window over that box (centered, above the panel), or park it off-screen |
 
 Deck button actions (`buttons[i].action`) take one of these forms:
 
@@ -201,7 +203,7 @@ Deck button actions (`buttons[i].action`) take one of these forms:
 
 ## Not supported (needs vendor SDKs or OS features unavailable to unpackaged apps)
 
-- **Stream Deck integration**: the Elgato SDK is needed. The **Button Deck** widget (keys, apps, media, URLs, text, page switching) replaces it.
+- **Stream Deck integration like iCUE's**: iCUE uses a private Elgato device type. Instead, the **Stream Deck** widget docks Elgato's own Virtual Stream Deck window (Stream Deck 7+, "Add Virtual Device") into the widget. The **Button Deck** widget is a built-in alternative.
 - **FPS counter**: this needs PresentMon/ETW or RTSS. As a workaround, show RTSS/SimHub data through the Web URL widget.
 - **Windows notifications**: `UserNotificationListener` requires package identity.
 - **Auto rotation**: rotate the Edge in Windows display settings. The panel switches to a portrait layout by itself.

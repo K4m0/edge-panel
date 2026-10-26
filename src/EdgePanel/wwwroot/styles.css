@@ -569,6 +569,20 @@ body.swiping .viewport { pointer-events: auto; }
 .tpad-btn.down { background: color-mix(in srgb, var(--accent) 40%, transparent); color: var(--text); }
 
 /* ---------- Coin ---------- */
+/* Stream Deck: an empty slot the host covers with the Virtual Stream Deck window */
+.sdeck { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 1.5cqh; }
+.sdeck-slot {
+  flex: 1; min-height: 0; border-radius: calc(var(--radius) * 0.7);
+  background: radial-gradient(120% 120% at 50% 0%, rgba(255, 255, 255, 0.05), transparent 60%), rgba(0, 0, 0, 0.25);
+  display: grid; place-items: center;
+}
+.sdeck-hint { display: flex; flex-direction: column; align-items: center; gap: 1.2cqh; text-align: center; color: var(--muted); padding: 4cqmin; max-width: 90cqw; }
+.sdeck-hint svg { width: 12cqmin; height: 12cqmin; fill: var(--accent); opacity: 0.8; }
+.sdeck-hint b { color: var(--text); font-size: clamp(12px, 6cqmin, 26px); font-weight: 600; }
+.sdeck-hint span { font-size: clamp(10px, 4cqmin, 18px); line-height: 1.35; }
+.sdeck.docked .sdeck-hint { visibility: hidden; }
+.sdeck-label {text-align: center; color: var(--muted); font-size: clamp(10px, 4.5cqmin, 18px); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+
 .coin { flex: 1; min-height: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3cqh; cursor: pointer; }
 .coin-stage { width: min(64cqh, 70cqw); aspect-ratio: 1; perspective: 1200px; flex: none; }
 .coin-3d { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 1.6s cubic-bezier(0.18, 0.7, 0.2, 1); }
