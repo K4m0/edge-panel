@@ -205,7 +205,7 @@ public partial class MainWindow : Window
         if (_edge is not { } edge || _hwnd == IntPtr.Zero || DesktopMode) return;
         var b = edge.Bounds;
         SetWindowPos(_hwnd, HWND_TOPMOST, b.Left, b.Top, b.Width, b.Height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
-        _streamDeck.Apply(); // the panel just became the top-most window; put the deck back above it
+        _streamDeck.Apply(restack: true); // the panel just became the top-most window; put the deck back above it
     }
 
     /// <summary>

@@ -56,7 +56,8 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
         var item = new ToolStripMenuItem(text, null, onClick)
         {
             CheckOnClick = checkable,
-            Padding = new Padding(0, 5, checkable ? 52 : 16, 5),
+            // Right padding reserves the switch area; the switch is anchored to the visible menu edge.
+            Padding = new Padding(0, 5, checkable ? 44 : 8, 5),
         };
         Glyphs.Add(item, new GlyphInfo { Glyph = glyph });
         return item;
@@ -68,8 +69,6 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
         var dpi = menu.DeviceDpi;
         var size = (int)Math.Round(20 * dpi / 96.0);
         menu.ImageScalingSize = new Size(size, size);
-        // Room for the longest label plus the switch, so nothing gets cut at the right edge.
-        menu.MinimumSize = new Size((int)Math.Round(290 * dpi / 96.0), 0);
         foreach (ToolStripItem item in menu.Items)
         {
             if (!Glyphs.TryGetValue(item, out var info) || info.Dpi == dpi) continue;

@@ -275,6 +275,7 @@
       drag.active = true;
       drag.x0 = e.clientX;  // start from here so the page does not jump
       api.swiping = true;
+      broadcast("swipe", true); // e.g. the Stream Deck widget hides its native window while the page moves
       try { viewport.setPointerCapture(e.pointerId); } catch { /* pointer gone */ }
       document.body.classList.add("swiping");
     }
@@ -304,7 +305,7 @@
     if (target === pageIndex || target < 0 || target >= pages.length) position(0, true);
     else go(target);
     // Swallow the click that follows the drag.
-    setTimeout(() => { api.swiping = false; }, 0);
+    setTimeout(() => { api.swiping = false; broadcast("swipe", false); }, 0);
   }
   window.addEventListener("pointerup", (e) => endDrag(e, false));
   window.addEventListener("pointercancel", (e) => endDrag(e, true));

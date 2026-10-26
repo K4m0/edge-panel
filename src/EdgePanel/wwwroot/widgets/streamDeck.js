@@ -37,7 +37,7 @@
           const r = slot.getBoundingClientRect();
           owner = ctx.id;
           ctx.send({ type: "dock", widgetId: ctx.id, fit: s.fit !== false, showEmptyKeys: s.showEmptyKeys !== false, rect: { x: r.left, y: r.top, w: r.width, h: r.height, dpr: window.devicePixelRatio } });
-        }, 450);
+        }, 400); // page transition is 380 ms
       };
       const release = () => {
         clearTimeout(timer);
@@ -52,6 +52,8 @@
       return {
         update(kind, data) {
           if (kind === "visible") (data ? report : release)();
+          // A native window can't slide with the page: hide it during a swipe, bring it back when the page settles.
+          if (kind === "swipe") (data ? release : () => { if (ctx.visible()) report(); })();
           // The real deck window now covers the slot; keep the hint only when it was not found.
           if (kind === "dockState" && data.widgetId === ctx.id) root.classList.toggle("docked", !!data.found);
         },

@@ -41,7 +41,7 @@ public sealed class StreamDeckDock
         _target = target;
         _fit = fit;
         _showEmptyKeys = showEmptyKeys;
-        Apply();
+        Apply(restack: true);
         return FindWindow() != IntPtr.Zero;
     }
 
@@ -91,8 +91,12 @@ public sealed class StreamDeckDock
         });
     }
 
-    /// <summary>Re-applies the position; call after the panel re-pins itself or periodically.</summary>
-    public void Apply()
+    /// <summary>
+    /// Re-applies the position; call periodically and with <paramref name="restack"/> after the panel
+    /// re-pins itself. The window is only touched when it is out of place or must be restacked:
+    /// moving a layered Qt window every tick makes it flicker.
+    /// </summary>
+    public void Apply(bool restack = false)
     {
         if (_target is null && _window == IntPtr.Zero) return; // nothing docked, don't go looking
 
@@ -110,8 +114,9 @@ public sealed class StreamDeckDock
 
         var x = t.Left + Math.Max(0, (t.Width - current.Width) / 2);
         var y = t.Top + Math.Max(0, (t.Height - current.Height) / 2);
-        // Always re-assert TOPMOST: the panel is topmost too, and the last one set wins.
-        SetWindowPos(hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+        // TOPMOST is re-asserted when moving or restacking: the panel is topmost too, and the last one set wins.
+        if (restack || current.Left != x || current.Top != y)
+            SetWindowPos(hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE);
 
         if (_fit) FitKeys(t, current);
     }
