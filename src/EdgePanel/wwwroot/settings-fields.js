@@ -177,13 +177,12 @@
     },
 
     sensor(f, ctx) {
-      // "left.sensor" pairs with "left.name": picking a sensor fills its name, unless the user typed a custom one.
+      // "left.sensor" pairs with "left.name": picking a sensor fills in its name (editable afterwards).
       const nameKey = f.key.replace(/sensor$/, "name");
       return EP.sensorPicker(ctx.get(f.key) ?? "", (v) => {
-        if (nameKey !== f.key) {
-          const prevName = EP.sensorInfo(ctx.get(f.key))?.name;
-          const name = ctx.get(nameKey);
-          if (!name || name === prevName) ctx.set(nameKey, EP.sensorInfo(v)?.name ?? name);
+        if (nameKey !== f.key && v !== ctx.get(f.key)) {
+          const name = EP.sensorInfo(v)?.name;
+          if (name) ctx.set(nameKey, name);
         }
         ctx.set(f.key, v);
         if (nameKey !== f.key) EP.renderSidePanels?.(); // show the new name in its input
@@ -207,9 +206,8 @@
           const nameInput = h("input", { type: "text", value: item.name ?? "", placeholder: "Display name", "aria-label": `Sensor ${i + 1} name`,
             oninput: () => { item.name = nameInput.value; commit(`name${i}`); } });
           const picker = EP.sensorPicker(item.sensor ?? "", (v) => {
-            const prevName = EP.sensorInfo(item.sensor)?.name;
+            if (v !== item.sensor) { item.name = EP.sensorInfo(v)?.name ?? item.name; nameInput.value = item.name; }
             item.sensor = v;
-            if (!item.name || item.name === prevName) { item.name = EP.sensorInfo(v)?.name ?? item.name; nameInput.value = item.name; }
             commit();
           }, `Sensor ${i + 1}`);
           return h("div", { class: "row two" }, picker, nameInput);

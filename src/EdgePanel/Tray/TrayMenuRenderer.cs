@@ -2,6 +2,7 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Text;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
@@ -9,7 +10,9 @@ namespace EdgePanel.Tray;
 
 /// <summary>
 /// Dark, rounded tray menu that matches the settings window (WinForms' default menu looks out of place).
-/// Icons are drawn from the Segoe Fluent Icons / MDL2 font, so they follow the system look and scale cleanly.
+/// Rows are owner-drawn at a fixed, measured width: WinForms' own layout at 125%/150% scaling sizes
+/// rows narrower than the menu and clips anything drawn past them, which cut off right-aligned marks.
+/// Icons come from the Segoe Fluent Icons / MDL2 font, so they follow the system look and scale cleanly.
 /// </summary>
 public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
 {
@@ -21,80 +24,97 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
     public static readonly Color Accent = Color.FromArgb(242, 201, 76);
     public static readonly Color Danger = Color.FromArgb(235, 87, 87);
 
+    private const char CheckGlyph = '';
+
     private static readonly string IconFont = FontExists("Segoe Fluent Icons") ? "Segoe Fluent Icons" : "Segoe MDL2 Assets";
+    private static readonly ConditionalWeakTable<ToolStripItem, RowInfo> Rows = new();
+
+    private sealed class RowInfo
+    {
+        public char Glyph;
+        public int Dpi;
+        public Bitmap? Icon;
+    }
 
     public TrayMenuRenderer() : base(new DarkColors()) => RoundedEdges = false;
 
-    /// <summary>Applies the renderer, font, spacing and Windows 11 rounded corners to a menu.</summary>
+    /// <summary>Applies the renderer, font, layout and Windows 11 rounded corners to a menu.</summary>
     public static void Style(ContextMenuStrip menu)
     {
         menu.Renderer = new TrayMenuRenderer();
         menu.BackColor = Background;
         menu.ForeColor = Text;
         menu.Font = new Font("Segoe UI", 10f);
-        menu.ShowImageMargin = true;
+        menu.ShowImageMargin = false; // icons are drawn by the renderer
         menu.ShowCheckMargin = false;
         menu.Padding = new Padding(4, 6, 4, 6);
+
+        // Toggling an option keeps the menu open, so several can be changed in a row.
+        var keepOpen = false;
+        menu.ItemClicked += (_, e) => keepOpen = e.ClickedItem is ToolStripMenuItem { CheckOnClick: true };
+        menu.Closing += (_, e) =>
+        {
+            if (e.CloseReason == ToolStripDropDownCloseReason.ItemClicked && keepOpen) e.Cancel = true;
+            keepOpen = false;
+        };
+
         menu.Opening += (_, _) =>
         {
             RoundCorners(menu.Handle);
-            RenderGlyphs(menu);
+            Layout(menu);
         };
     }
 
-    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ToolStripItem, GlyphInfo> Glyphs = new();
-
-    private sealed class GlyphInfo
-    {
-        public char Glyph;
-        public int Dpi;
-    }
-
-    /// <summary>Menu item with an icon; checkable items get room on the right for the switch.</summary>
+    /// <summary>Menu row with an icon. Checkable rows show a round check mark on the right.</summary>
     public static ToolStripMenuItem Item(string text, char glyph, EventHandler? onClick = null, bool checkable = false)
     {
-        var item = new ToolStripMenuItem(text, null, onClick)
-        {
-            CheckOnClick = checkable,
-            Padding = new Padding(0, 5, 8, 5),
-        };
-        Glyphs.Add(item, new GlyphInfo { Glyph = glyph });
+        var item = new ToolStripMenuItem(text, null, onClick) { CheckOnClick = checkable };
+        Rows.Add(item, new RowInfo { Glyph = glyph });
         return item;
     }
 
-    /// <summary>(Re)draws icons at the menu's current DPI so they stay crisp at 125%/150% scaling.</summary>
-    private static void RenderGlyphs(ContextMenuStrip menu)
+    private static int S(ToolStrip strip, int px) => (int)Math.Round(px * strip.DeviceDpi / 96.0);
+    private static int S(ToolStripItem item, int px) => (int)Math.Round(px * (item.Owner?.DeviceDpi ?? 96) / 96.0);
+
+    private static int IconSize(ToolStripItem item) => S(item, 20);
+    private static int LeftPad(ToolStripItem item) => S(item, 14);
+    private static int TextX(ToolStripItem item) => LeftPad(item) + IconSize(item) + S(item, 14);
+    private static int CheckSize(ToolStripItem item) => S(item, 18);
+    private static int RightPad(ToolStripItem item) => S(item, 14);
+
+    /// <summary>Gives every row the same measured width and height, and (re)renders icons at the menu's DPI.</summary>
+    private static void Layout(ContextMenuStrip menu)
     {
         var dpi = menu.DeviceDpi;
-        int S(int px) => (int)Math.Round(px * dpi / 96.0);
-        var size = S(20);
-        menu.ImageScalingSize = new Size(size, size);
-
-        // WinForms doesn't count item padding when sizing a dropdown at non-100% DPI, so size the
-        // menu from the measured labels: icon column + longest label + room for the switch.
         var text = 0;
         foreach (ToolStripItem item in menu.Items)
-            if (item is ToolStripMenuItem)
+            if (item is ToolStripMenuItem or ToolStripLabel)
                 text = Math.Max(text, TextRenderer.MeasureText(item.Text, item.Font).Width);
-        // icon column (icon + its margins) + label + gap + switch + right margin
-        menu.MinimumSize = new Size(size + S(16) + text + S(14) + S(32) + S(16), 0);
+
+        var width = S(menu, 14) + S(menu, 20) + S(menu, 14) + text + S(menu, 24) + S(menu, 18) + S(menu, 14);
         foreach (ToolStripItem item in menu.Items)
         {
-            if (!Glyphs.TryGetValue(item, out var info) || info.Dpi == dpi) continue;
-            item.Image?.Dispose();
-            item.Image = Glyph(info.Glyph, null, size);
-            info.Dpi = dpi;
+            if (item is ToolStripSeparator) continue;
+            item.AutoSize = false;
+            item.Size = new Size(width, item is ToolStripLabel ? S(menu, 30) : S(menu, 36));
+
+            if (Rows.TryGetValue(item, out var row) && row.Dpi != dpi)
+            {
+                row.Icon?.Dispose();
+                row.Icon = Glyph(row.Glyph, Text, S(menu, 20));
+                row.Dpi = dpi;
+            }
         }
     }
 
-    /// <summary>Renders a glyph from the system icon font as a menu image.</summary>
-    public static Bitmap Glyph(char glyph, Color? color = null, int size = 18)
+    /// <summary>Renders a glyph from the system icon font.</summary>
+    public static Bitmap Glyph(char glyph, Color color, int size)
     {
         var bmp = new Bitmap(size, size);
         using var g = Graphics.FromImage(bmp);
         g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
         using var font = new Font(IconFont, size * 0.8f, GraphicsUnit.Pixel);
-        using var brush = new SolidBrush(color ?? Text);
+        using var brush = new SolidBrush(color);
         using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
         g.DrawString(glyph.ToString(), font, brush, new RectangleF(0, 0, size, size), format);
         return bmp;
@@ -109,73 +129,70 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
     }
 
     protected override void OnRenderImageMargin(ToolStripRenderEventArgs e) { }
+    protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e) { }
+    protected override void OnRenderItemImage(ToolStripItemImageRenderEventArgs e) { }
 
+    /// <summary>Whole row: hover, icon, label and check mark, all inside the row's own bounds.</summary>
     protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
     {
+        if (e.Item is not ToolStripMenuItem item) return;
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        if (e.Item.Selected && e.Item.Enabled)
+        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+
+        if (item.Selected && item.Enabled)
         {
-            var r = new Rectangle(2, 1, VisibleWidth(e.Item) - 4, e.Item.Height - 2);
-            using var path = RoundedRect(r, Scale(e.Item, 6));
+            using var path = RoundedRect(new Rectangle(S(item, 4), 1, item.Width - S(item, 8), item.Height - 2), S(item, 6));
             using var brush = new SolidBrush(Hover);
             g.FillPath(brush, path);
         }
-        // Drawn here (full item bounds); the image callback is clipped to the icon box.
-        if (e.Item is ToolStripMenuItem { CheckOnClick: true } item) DrawSwitch(g, item);
+
+        if (Rows.TryGetValue(item, out var row) && row.Icon is { } icon)
+            g.DrawImage(icon, LeftPad(item), (item.Height - icon.Height) / 2, icon.Width, icon.Height);
+
+        var danger = item.Tag as string == "danger" && item.Selected;
+        var textRect = new Rectangle(TextX(item), 0, item.Width - TextX(item) - CheckSize(item) - RightPad(item), item.Height);
+        TextRenderer.DrawText(g, item.Text, item.Font, textRect, !item.Enabled ? Muted : danger ? Danger : Text,
+            TextFormatFlags.VerticalCenter | TextFormatFlags.Left | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+
+        if (item.CheckOnClick) DrawCheck(g, item);
     }
 
+    // Menu rows draw their own text (above); labels such as the header use the default path.
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
     {
-        e.TextColor = !e.Item.Enabled ? Muted : e.Item.Tag as string == "danger" && e.Item.Selected ? Danger : Text;
+        if (e.Item is ToolStripMenuItem) return;
+        e.TextColor = Muted;
+        e.TextFormat = TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter;
+        e.TextRectangle = new Rectangle(0, 0, e.Item.Width, e.Item.Height);
         base.OnRenderItemText(e);
     }
 
-    protected override void OnRenderItemCheck(ToolStripItemImageRenderEventArgs e)
+    /// <summary>Round check: filled accent with a check when on, a thin ring when off.</summary>
+    private static void DrawCheck(Graphics g, ToolStripMenuItem item)
     {
-        // Checkable items show a toggle switch on the right instead of a boxed check mark (see DrawSwitch).
+        var d = CheckSize(item);
+        var rect = new Rectangle(item.Width - RightPad(item) - d, (item.Height - d) / 2, d, d);
+        if (item.Checked)
+        {
+            using var fill = new SolidBrush(Accent);
+            g.FillEllipse(fill, rect);
+            using var check = Glyph(CheckGlyph, Background, d);
+            g.DrawImage(check, rect.X, rect.Y, d, d);
+        }
+        else
+        {
+            using var ring = new Pen(Border, Math.Max(1.5f, S(item, 2)));
+            g.DrawEllipse(ring, rect.X + 1, rect.Y + 1, d - 2, d - 2);
+        }
     }
-
-    protected override void OnRenderItemImage(ToolStripItemImageRenderEventArgs e)
-    {
-        // Draw the glyph at its own pixel size: the default path stretches it into the
-        // checked-state box and blurs it.
-        if (e.Image is null) return;
-        var r = e.ImageRectangle;
-        var x = r.X + (r.Width - e.Image.Width) / 2;
-        var y = r.Y + (r.Height - e.Image.Height) / 2;
-        e.Graphics.DrawImage(e.Image, x, y, e.Image.Width, e.Image.Height);
-    }
-
-    /// <summary>A small toggle switch at the right edge for checkable items.</summary>
-    private static void DrawSwitch(Graphics g, ToolStripMenuItem item)
-    {
-        int w = Scale(item, 32), h = Scale(item, 18), pad = Scale(item, 3);
-        var x = VisibleWidth(item) - w - Scale(item, 10);
-        var y = (item.Height - h) / 2;
-        using var track = RoundedRect(new Rectangle(x, y, w, h), h / 2);
-        using var trackBrush = new SolidBrush(item.Checked ? Accent : Border);
-        g.FillPath(trackBrush, track);
-        var d = h - pad * 2;
-        var knob = item.Checked ? x + w - d - pad : x + pad;
-        using var knobBrush = new SolidBrush(item.Checked ? Background : Text);
-        g.FillEllipse(knobBrush, knob, y + pad, d, d);
-    }
-
-    /// <summary>
-    /// Width of the menu row as shown. Items don't always stretch to the menu's width (or can exceed it
-    /// at non-100% DPI), so hover and switches are laid out against the menu itself.
-    /// </summary>
-    private static int VisibleWidth(ToolStripItem item) =>
-        item.Owner is { } owner ? owner.ClientSize.Width - item.Bounds.X - Scale(item, 4) : item.Width;
-
-    private static int Scale(ToolStripItem item, int px) => (int)Math.Round(px * (item.Owner?.DeviceDpi ?? 96) / 96.0);
 
     protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
     {
         var y = e.Item.Height / 2;
+        var inset = S(e.Item, 12);
         using var pen = new Pen(Border);
-        e.Graphics.DrawLine(pen, 10, y, e.Item.Width - 10, y);
+        e.Graphics.DrawLine(pen, inset, y, e.Item.Width - inset, y);
     }
 
     private static GraphicsPath RoundedRect(Rectangle r, int radius)
@@ -219,7 +236,6 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
         public override Color ImageMarginGradientEnd => Background;
         public override Color SeparatorDark => Border;
         public override Color SeparatorLight => Border;
-        // No highlighted box behind the icon of checked items; the switch shows the state.
         public override Color CheckBackground => Background;
         public override Color CheckSelectedBackground => Hover;
         public override Color CheckPressedBackground => Hover;
