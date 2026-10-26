@@ -250,6 +250,20 @@
       case "picked":
         EP.resolvePick(msg);
         break;
+      case "panelPage": {
+        // The page was changed on the Edge itself; follow it without sending it back.
+        const i = EP.clamp(Number(msg.index) || 0, 0, EP.config.pages.length - 1);
+        if (i === EP.pageIndex) break;
+        EP.pageIndex = i;
+        if (!EP.page().widgets.some((w) => w.id === EP.selectedId)) EP.selectedId = null;
+        EP.toPreview({ type: "goto", index: i });
+        EP.render();
+        break;
+      }
+      case "streamDeckStatus":
+        EP.streamDeck = msg.data ?? null;
+        EP.onStreamDeckStatus?.();
+        break;
       case "device":
         EP.device = msg.data ?? { supported: false };
         if (EP.view === "device") EP.otherViews.device();

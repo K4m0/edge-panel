@@ -114,6 +114,20 @@ public partial class SettingsWindow : Window
                     if (root.TryGetProperty("index", out var page) && page.TryGetInt32(out var index)) _panel.Goto(index);
                     break;
 
+                case "streamDeckStatus":
+                    _ = SendStreamDeckStatusAsync(TimeSpan.Zero);
+                    break;
+
+                case "streamDeckOpen":
+                    StreamDeckSettings.Open();
+                    _ = SendStreamDeckStatusAsync(TimeSpan.FromSeconds(3));
+                    break;
+
+                case "streamDeckLink":
+                    // Turns on the Virtual Stream Deck window; Stream Deck restarts if the setting changes.
+                    _ = Task.Run(StreamDeckSettings.Show).ContinueWith(_ => SendStreamDeckStatusAsync(TimeSpan.FromSeconds(4)));
+                    break;
+
                 case "redetect":
                     _panel.Reposition("settings");
                     break;
@@ -178,6 +192,16 @@ public partial class SettingsWindow : Window
             Post(new { type = "device", data = new DeviceState(false, null, null, null, null, null) });
         }
     }
+
+    private async Task SendStreamDeckStatusAsync(TimeSpan delay)
+    {
+        if (delay > TimeSpan.Zero) await Task.Delay(delay);
+        var status = await Task.Run(StreamDeckSettings.Status);
+        await Dispatcher.InvokeAsync(() => Post(new { type = "streamDeckStatus", data = status }));
+    }
+
+    /// <summary>The panel changed page (swipe or hotkey); the editor follows it.</summary>
+    public void PanelPageChanged(int index) => Dispatcher.BeginInvoke(() => Post(new { type = "panelPage", index }));
 
     private void SendState() => Post(new
     {

@@ -252,6 +252,7 @@ window.EDGE_CATALOG = [
     sizes: ["S", "W", "M", "L", "XL"], defaultSize: "W",
     defaults: { label: "", fit: true, showEmptyKeys: true },
     fields: [
+      { key: "_link", label: "Virtual device", type: "streamDeckLink" },
       { key: "showEmptyKeys", label: "Show empty keys", type: "toggle", help: "Shows the whole key grid, including keys with no action." },
       {
         key: "fit", label: "Fill the widget", type: "toggle",

@@ -182,9 +182,12 @@ public partial class App : System.Windows.Application
         // Live preview: the settings page gets the same sensors/media/audio/icons as the panel.
         Action<string> mirror = settings.Mirror;
         _panel.Mirror += mirror;
+        Action<int> pageChanged = settings.PanelPageChanged;
+        _panel.PageChanged += pageChanged;
         settings.Closed += (_, _) =>
         {
             _panel.Mirror -= mirror;
+            _panel.PageChanged -= pageChanged;
             _settings = null;
         };
         _settings = settings;

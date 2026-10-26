@@ -35,6 +35,9 @@ public partial class MainWindow : Window
     private readonly MouseGuard _mouseGuard;
     private readonly MediaReader _media = new();
     private readonly StreamDeckDock _streamDeck = new();
+
+    /// <summary>The user changed page on the Edge (swipe, dot or hotkey).</summary>
+    public event Action<int>? PageChanged;
     private readonly AudioService _audio = new();
     private readonly DisplayControl _display = new();
     private readonly DispatcherTimer _watchdog;
@@ -321,6 +324,7 @@ public partial class MainWindow : Window
                     break;
                 case "page" when Int(root, "index") is { } page:
                     _currentPage = page;
+                    PageChanged?.Invoke(page);
                     break;
                 case "dock":
                     DockStreamDeck(root);

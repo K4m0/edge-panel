@@ -46,9 +46,65 @@ public static class StreamDeckSettings
     public static bool Apply(int keySize, bool showEmptyKeys)
     {
         keySize = Math.Clamp(keySize, MinKeySize, MaxKeySize);
+        return Update(json =>
+        {
+            if (json["keySize"]?.GetValue<int>() == keySize && json["hideEmptyKeys"]?.GetValue<bool>() == !showEmptyKeys) return false;
+            json["keySize"] = keySize;
+            json["hideEmptyKeys"] = !showEmptyKeys;
+            Log.Info($"Virtual Stream Deck key size set to {keySize}, empty keys {(showEmptyKeys ? "shown" : "hidden")}");
+            return true;
+        });
+    }
 
-        var exe = Process.GetProcessesByName("StreamDeck").Select(TryPath).FirstOrDefault(p => p is not null)
-                  ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Elgato", "StreamDeck", "StreamDeck.exe");
+    /// <summary>Makes the Virtual Stream Deck window visible (the eye icon in Stream Deck), restarting Stream Deck if needed.</summary>
+    public static bool Show()
+    {
+        var (current, _, _) = ReadConfig();
+        if (current?["visible"]?.GetValue<bool>() == true)
+        {
+            Open(); // already set; just make sure Stream Deck runs (it doesn't restart a running instance)
+            return false;
+        }
+        return ShowCore();
+    }
+
+    private static bool ShowCore() => Update(json =>
+    {
+        if (json["visible"]?.GetValue<bool>() == true) return false;
+        json["visible"] = true;
+        Log.Info("Virtual Stream Deck set to visible");
+        return true;
+    });
+
+    public static string ExePath =>
+        Process.GetProcessesByName("StreamDeck").Select(TryPath).FirstOrDefault(p => p is not null)
+        ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Elgato", "StreamDeck", "StreamDeck.exe");
+
+    /// <summary>What the settings editor shows for the Stream Deck link.</summary>
+    public sealed record LinkStatus(bool Installed, bool Running, string? Version, bool HasVirtualDevice, bool Visible, int? KeySize);
+
+    public static LinkStatus Status()
+    {
+        var exe = ExePath;
+        var installed = File.Exists(exe);
+        var running = Process.GetProcessesByName("StreamDeck").Length > 0;
+        string? version = null;
+        try { if (installed) version = FileVersionInfo.GetVersionInfo(exe).ProductVersion; } catch { }
+        var (json, _, _) = ReadConfig();
+        return new LinkStatus(installed, running, version, json is not null,
+            json?["visible"]?.GetValue<bool>() ?? false, json?["keySize"]?.GetValue<int>());
+    }
+
+    /// <summary>Starts Stream Deck (unelevated) if it isn't running; otherwise brings it up through its own single-instance handling.</summary>
+    public static void Open() => Restart(ExePath);
+
+    /// <summary>
+    /// Stops Stream Deck, lets <paramref name="mutate"/> change the virtual deck's JSON (return true when
+    /// something changed), writes it back with a backup, and starts Stream Deck again.
+    /// </summary>
+    private static bool Update(Func<JsonObject, bool> mutate)
+    {
+        var exe = ExePath;
 
         // Kill (not close): a normal exit would save the old settings over ours.
         foreach (var p in Process.GetProcessesByName("StreamDeck"))
@@ -57,25 +113,15 @@ public static class StreamDeckSettings
         }
 
         var (json, raw, span) = ReadConfig();
-        if (json is null || raw is null)
+        var changed = false;
+        if (json is not null && raw is not null && mutate(json))
         {
-            Restart(exe);
-            return false;
+            Backup(raw);
+            Write(raw, span, json.ToJsonString());
+            changed = true;
         }
-
-        if (json["keySize"]?.GetValue<int>() == keySize && json["hideEmptyKeys"]?.GetValue<bool>() == !showEmptyKeys)
-        {
-            Restart(exe);
-            return false;
-        }
-
-        Backup(raw);
-        json["keySize"] = keySize;
-        json["hideEmptyKeys"] = !showEmptyKeys;
-        Write(raw, span, json.ToJsonString());
-        Log.Info($"Virtual Stream Deck key size set to {keySize}, empty keys {(showEmptyKeys ? "shown" : "hidden")}");
         Restart(exe);
-        return true;
+        return changed;
     }
 
     private static string? TryPath(Process p)

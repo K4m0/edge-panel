@@ -39,7 +39,7 @@
 
   /* ---------- Field rows ---------- */
 
-  const STACKED = new Set(["textarea", "sensors", "apps", "buttons", "mediaList", "city", "media"]);
+  const STACKED = new Set(["textarea", "sensors", "apps", "buttons", "mediaList", "city", "media", "streamDeckLink"]);
 
   const showIfOk = (field, ctx) => !field.showIf || Object.entries(field.showIf).every(([k, v]) => {
     const cur = ctx.get(k);
@@ -87,6 +87,38 @@
   };
 
   const FIELDS = {
+    /** Link status with Elgato Stream Deck's Virtual Stream Deck, like iCUE's "Virtual Device" row. */
+    streamDeckLink() {
+      const state = h("div", { class: "sd-state" });
+      const detail = h("div", { class: "sd-detail muted" });
+      const link = h("button", { type: "button", class: "btn primary", onclick: () => { busy("Linking… Stream Deck may restart."); EP.send({ type: "streamDeckLink" }); } }, "Link Virtual Stream Deck");
+      const open = h("button", { type: "button", class: "btn", onclick: () => { busy("Opening Stream Deck…"); EP.send({ type: "streamDeckOpen" }); } }, "Open Stream Deck");
+      const refresh = h("button", { type: "button", class: "btn", onclick: () => EP.send({ type: "streamDeckStatus" }) }, "Refresh");
+      const box = h("div", { class: "sd-link" }, state, detail, h("div", { class: "row" }, link, open, refresh));
+
+      const busy = (text) => { state.className = "sd-state wait"; state.textContent = text; };
+      const update = () => {
+        const s = EP.streamDeck;
+        if (!box.isConnected && EP.onStreamDeckStatus === update) EP.onStreamDeckStatus = null;
+        let cls = "warn", text, help = "";
+        if (!s) { cls = "wait"; text = "Checking Stream Deck…"; }
+        else if (!s.installed) { text = "Stream Deck is not installed"; help = "Install Elgato Stream Deck 7 or later."; }
+        else if (!s.hasVirtualDevice) { text = "No Virtual Stream Deck yet"; help = "Open Stream Deck → device menu → Add Virtual Device…, choose a size and set up your profile."; }
+        else if (!s.running) { text = "Stream Deck is not running"; help = "Open Stream Deck, or press Link to start it."; }
+        else if (!s.visible) { text = "Virtual Stream Deck is hidden"; help = "Press Link to show it on the Edge."; }
+        else { cls = "ok"; text = "Linked: your Virtual Stream Deck is shown in this widget"; }
+        state.className = `sd-state ${cls}`;
+        state.textContent = text;
+        detail.textContent = [s?.version && `Stream Deck ${s.version.split(" ")[0]}`, s?.keySize && `key size ${s.keySize}`, help].filter(Boolean).join(" · ");
+        link.hidden = cls === "ok" || (s && !s.installed);
+        link.disabled = !!(s && !s.hasVirtualDevice);
+      };
+      EP.onStreamDeckStatus = update;
+      update();
+      EP.send({ type: "streamDeckStatus" });
+      return box;
+    },
+
     text: textLike("text"),
     url: textLike("url"),
     textarea: textLike("textarea"),

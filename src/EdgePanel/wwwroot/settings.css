@@ -525,3 +525,14 @@ code.path { max-width: 380px; overflow: hidden; text-overflow: ellipsis; white-s
 .card > .seg { justify-self: start; }
 .panel-head .search { flex: 1 1 100px; margin-left: auto; }
 .panel-head:has(.search) .panel-title { flex: 0 0 auto; }
+
+/* Stream Deck link status (Stream Deck widget settings) */
+.sd-link { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: rgba(255, 255, 255, 0.02); }
+.sd-link .row { flex-wrap: wrap; gap: 8px; }
+.sd-state { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.sd-state::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; background: var(--muted); }
+.sd-state.ok::before { background: var(--ok); box-shadow: 0 0 0 3px rgba(76, 209, 138, 0.18); }
+.sd-state.warn::before { background: var(--warn); }
+.sd-state.wait::before { background: var(--accent); animation: sd-pulse 1s ease-in-out infinite alternate; }
+.sd-detail { font-size: 12.5px; line-height: 1.45; }
+@keyframes sd-pulse { from { opacity: 0.35; } to { opacity: 1; } }

@@ -56,8 +56,7 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
         var item = new ToolStripMenuItem(text, null, onClick)
         {
             CheckOnClick = checkable,
-            // Right padding reserves the switch area; the switch is anchored to the visible menu edge.
-            Padding = new Padding(0, 5, checkable ? 44 : 8, 5),
+            Padding = new Padding(0, 5, 8, 5),
         };
         Glyphs.Add(item, new GlyphInfo { Glyph = glyph });
         return item;
@@ -67,8 +66,17 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
     private static void RenderGlyphs(ContextMenuStrip menu)
     {
         var dpi = menu.DeviceDpi;
-        var size = (int)Math.Round(20 * dpi / 96.0);
+        int S(int px) => (int)Math.Round(px * dpi / 96.0);
+        var size = S(20);
         menu.ImageScalingSize = new Size(size, size);
+
+        // WinForms doesn't count item padding when sizing a dropdown at non-100% DPI, so size the
+        // menu from the measured labels: icon column + longest label + room for the switch.
+        var text = 0;
+        foreach (ToolStripItem item in menu.Items)
+            if (item is ToolStripMenuItem)
+                text = Math.Max(text, TextRenderer.MeasureText(item.Text, item.Font).Width);
+        menu.MinimumSize = new Size(size + S(18) + text + S(24) + S(32) + S(20), 0);
         foreach (ToolStripItem item in menu.Items)
         {
             if (!Glyphs.TryGetValue(item, out var info) || info.Dpi == dpi) continue;
