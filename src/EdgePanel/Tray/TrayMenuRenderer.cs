@@ -35,19 +35,46 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
         menu.ShowImageMargin = true;
         menu.ShowCheckMargin = false;
         menu.Padding = new Padding(4, 6, 4, 6);
-        menu.ImageScalingSize = new Size(18, 18);
-        menu.Opening += (_, _) => RoundCorners(menu.Handle);
+        menu.Opening += (_, _) =>
+        {
+            RoundCorners(menu.Handle);
+            RenderGlyphs(menu);
+        };
+    }
+
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ToolStripItem, GlyphInfo> Glyphs = new();
+
+    private sealed class GlyphInfo
+    {
+        public char Glyph;
+        public int Dpi;
     }
 
     /// <summary>Menu item with an icon; checkable items get room on the right for the switch.</summary>
     public static ToolStripMenuItem Item(string text, char glyph, EventHandler? onClick = null, bool checkable = false)
     {
-        var item = new ToolStripMenuItem(text, Glyph(glyph), onClick)
+        var item = new ToolStripMenuItem(text, null, onClick)
         {
             CheckOnClick = checkable,
-            Padding = new Padding(0, 5, checkable ? 48 : 16, 5),
+            Padding = new Padding(0, 5, checkable ? 52 : 16, 5),
         };
+        Glyphs.Add(item, new GlyphInfo { Glyph = glyph });
         return item;
+    }
+
+    /// <summary>(Re)draws icons at the menu's current DPI so they stay crisp at 125%/150% scaling.</summary>
+    private static void RenderGlyphs(ContextMenuStrip menu)
+    {
+        var dpi = menu.DeviceDpi;
+        var size = (int)Math.Round(20 * dpi / 96.0);
+        menu.ImageScalingSize = new Size(size, size);
+        foreach (ToolStripItem item in menu.Items)
+        {
+            if (!Glyphs.TryGetValue(item, out var info) || info.Dpi == dpi) continue;
+            item.Image?.Dispose();
+            item.Image = Glyph(info.Glyph, null, size);
+            info.Dpi = dpi;
+        }
     }
 
     /// <summary>Renders a glyph from the system icon font as a menu image.</summary>
@@ -56,7 +83,7 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
         var bmp = new Bitmap(size, size);
         using var g = Graphics.FromImage(bmp);
         g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
-        using var font = new Font(IconFont, size * 0.62f, GraphicsUnit.Pixel);
+        using var font = new Font(IconFont, size * 0.8f, GraphicsUnit.Pixel);
         using var brush = new SolidBrush(color ?? Text);
         using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
         g.DrawString(glyph.ToString(), font, brush, new RectangleF(0, 0, size, size), format);
@@ -75,13 +102,17 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
 
     protected override void OnRenderMenuItemBackground(ToolStripItemRenderEventArgs e)
     {
-        if (!e.Item.Selected || !e.Item.Enabled) return;
         var g = e.Graphics;
         g.SmoothingMode = SmoothingMode.AntiAlias;
-        var r = new Rectangle(2, 1, e.Item.Width - 4, e.Item.Height - 2);
-        using var path = RoundedRect(r, 6);
-        using var brush = new SolidBrush(Hover);
-        g.FillPath(brush, path);
+        if (e.Item.Selected && e.Item.Enabled)
+        {
+            var r = new Rectangle(2, 1, e.Item.Width - 4, e.Item.Height - 2);
+            using var path = RoundedRect(r, Scale(e.Item, 6));
+            using var brush = new SolidBrush(Hover);
+            g.FillPath(brush, path);
+        }
+        // Drawn here (full item bounds); the image callback is clipped to the icon box.
+        if (e.Item is ToolStripMenuItem { CheckOnClick: true } item) DrawSwitch(g, item);
     }
 
     protected override void OnRenderItemText(ToolStripItemTextRenderEventArgs e)
@@ -97,24 +128,31 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
 
     protected override void OnRenderItemImage(ToolStripItemImageRenderEventArgs e)
     {
-        base.OnRenderItemImage(e);
-        if (e.Item is ToolStripMenuItem { CheckOnClick: true } item) DrawSwitch(e.Graphics, item);
+        // Draw the glyph at its own pixel size: the default path stretches it into the
+        // checked-state box and blurs it.
+        if (e.Image is null) return;
+        var r = e.ImageRectangle;
+        var x = r.X + (r.Width - e.Image.Width) / 2;
+        var y = r.Y + (r.Height - e.Image.Height) / 2;
+        e.Graphics.DrawImage(e.Image, x, y, e.Image.Width, e.Image.Height);
     }
 
     /// <summary>A small toggle switch at the right edge for checkable items.</summary>
     private static void DrawSwitch(Graphics g, ToolStripMenuItem item)
     {
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        const int w = 30, h = 16;
-        var x = item.Width - w - 12;
+        int w = Scale(item, 32), h = Scale(item, 18), pad = Scale(item, 3);
+        var x = item.Width - w - Scale(item, 12);
         var y = (item.Height - h) / 2;
         using var track = RoundedRect(new Rectangle(x, y, w, h), h / 2);
         using var trackBrush = new SolidBrush(item.Checked ? Accent : Border);
         g.FillPath(trackBrush, track);
-        var knob = item.Checked ? x + w - h + 2 : x + 2;
+        var d = h - pad * 2;
+        var knob = item.Checked ? x + w - d - pad : x + pad;
         using var knobBrush = new SolidBrush(item.Checked ? Background : Text);
-        g.FillEllipse(knobBrush, knob, y + 2, h - 4, h - 4);
+        g.FillEllipse(knobBrush, knob, y + pad, d, d);
     }
+
+    private static int Scale(ToolStripItem item, int px) => (int)Math.Round(px * (item.Owner?.DeviceDpi ?? 96) / 96.0);
 
     protected override void OnRenderSeparator(ToolStripSeparatorRenderEventArgs e)
     {
@@ -164,5 +202,10 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
         public override Color ImageMarginGradientEnd => Background;
         public override Color SeparatorDark => Border;
         public override Color SeparatorLight => Border;
+        // No highlighted box behind the icon of checked items; the switch shows the state.
+        public override Color CheckBackground => Background;
+        public override Color CheckSelectedBackground => Hover;
+        public override Color CheckPressedBackground => Hover;
+        public override Color ButtonSelectedBorder => Color.Transparent;
     }
 }

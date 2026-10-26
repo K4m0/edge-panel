@@ -250,11 +250,15 @@ window.EDGE_CATALOG = [
   {
     type: "streamDeck", name: "Stream Deck", icon: "deck", category: "Control",
     sizes: ["S", "W", "M", "L", "XL"], defaultSize: "W",
-    defaults: { label: "" },
+    defaults: { label: "", fit: true },
     fields: [
       {
+        key: "fit", label: "Fill the widget", type: "toggle",
+        help: "Changes the Virtual Stream Deck key size so it fills this widget. Stream Deck restarts once when the size changes.",
+      },
+      {
         key: "label", label: "Label", type: "text", placeholder: "Optional",
-        help: "Shows your Elgato Virtual Stream Deck here. In Stream Deck: Devices → Add Virtual Device, then show it with the eye icon. Its size is set in Stream Deck.",
+        help: "Shows your Elgato Virtual Stream Deck here. In Stream Deck: Devices → Add Virtual Device, then show it with the eye icon.",
       },
     ],
   },

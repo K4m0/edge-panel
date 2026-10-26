@@ -22,12 +22,55 @@ public sealed class StreamDeckDock
     private RECT? _target;
     private RECT? _originalBounds;
 
-    /// <summary>Area (physical pixels) to center the deck in, or null to park it. Returns whether the deck window exists.</summary>
-    public bool SetTarget(RECT? target)
+    private DateTime _lastFit = DateTime.MinValue;
+    private volatile bool _fitting;
+
+    /// <summary>
+    /// Area (physical pixels) to center the deck in, or null to park it. With <paramref name="fit"/>,
+    /// the key size is changed in Stream Deck so the deck fills the area. Returns whether the deck window exists.
+    /// </summary>
+    public bool SetTarget(RECT? target, bool fit = false)
     {
         _target = target;
         Apply();
-        return FindWindow() != IntPtr.Zero;
+        var found = FindWindow() != IntPtr.Zero;
+        if (found && fit && target is { } t) FitKeys(t);
+        return found;
+    }
+
+    /// <summary>
+    /// Window size grows roughly linearly with the key size, so scale the key size by how much
+    /// the window must grow to fill the target (with a small margin). Rate-limited, because
+    /// applying it restarts Stream Deck.
+    /// </summary>
+    private void FitKeys(RECT target)
+    {
+        if (_fitting || DateTime.Now - _lastFit < TimeSpan.FromMinutes(2)) return;
+        if (!GetWindowRect(_window, out var current) || current.Width <= 0 || current.Height <= 0) return;
+
+        var scale = Math.Min((double)target.Width / current.Width, (double)target.Height / current.Height) * 0.94;
+        if (Math.Abs(scale - 1) < 0.12) return; // already close enough
+
+        _fitting = true;
+        _lastFit = DateTime.Now;
+        System.Threading.Tasks.Task.Run(() =>
+        {
+            try
+            {
+                if (StreamDeckSettings.ReadKeySize() is not { } keySize) return;
+                var wanted = (int)Math.Round(keySize * scale);
+                Log.Info($"Fitting Virtual Stream Deck: window {current.Width}x{current.Height}, slot {target.Width}x{target.Height}, key size {keySize} -> {wanted}");
+                if (StreamDeckSettings.SetKeySize(wanted)) _window = IntPtr.Zero; // Stream Deck recreates its window
+            }
+            catch (Exception ex)
+            {
+                Log.Error("Fitting the Virtual Stream Deck failed", ex);
+            }
+            finally
+            {
+                _fitting = false;
+            }
+        });
     }
 
     /// <summary>Re-applies the position; call after the panel re-pins itself or periodically.</summary>
