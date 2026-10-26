@@ -36,7 +36,7 @@
           if (!ctx.visible()) return;
           const r = slot.getBoundingClientRect();
           owner = ctx.id;
-          ctx.send({ type: "dock", widgetId: ctx.id, fit: s.fit !== false, rect: { x: r.left, y: r.top, w: r.width, h: r.height, dpr: window.devicePixelRatio } });
+          ctx.send({ type: "dock", widgetId: ctx.id, fit: s.fit !== false, showEmptyKeys: s.showEmptyKeys !== false, rect: { x: r.left, y: r.top, w: r.width, h: r.height, dpr: window.devicePixelRatio } });
         }, 450);
       };
       const release = () => {

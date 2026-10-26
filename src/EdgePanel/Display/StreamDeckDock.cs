@@ -22,6 +22,12 @@ public sealed class StreamDeckDock
     private RECT? _target;
     private RECT? _originalBounds;
 
+    private const int MaxFitAttempts = 4;
+
+    private bool _fit;
+    private bool _showEmptyKeys;
+    private RECT? _fittedFor;
+    private int _fitAttempts;
     private DateTime _lastFit = DateTime.MinValue;
     private volatile bool _fitting;
 
@@ -29,38 +35,50 @@ public sealed class StreamDeckDock
     /// Area (physical pixels) to center the deck in, or null to park it. With <paramref name="fit"/>,
     /// the key size is changed in Stream Deck so the deck fills the area. Returns whether the deck window exists.
     /// </summary>
-    public bool SetTarget(RECT? target, bool fit = false)
+    public bool SetTarget(RECT? target, bool fit = false, bool showEmptyKeys = true)
     {
+        if (!Equals(target, _fittedFor) || fit != _fit || showEmptyKeys != _showEmptyKeys) _fitAttempts = 0; // new goal
         _target = target;
+        _fit = fit;
+        _showEmptyKeys = showEmptyKeys;
         Apply();
-        var found = FindWindow() != IntPtr.Zero;
-        if (found && fit && target is { } t) FitKeys(t);
-        return found;
+        return FindWindow() != IntPtr.Zero;
     }
 
     /// <summary>
-    /// Window size grows roughly linearly with the key size, so scale the key size by how much
-    /// the window must grow to fill the target (with a small margin). Rate-limited, because
-    /// applying it restarts Stream Deck.
+    /// The window grows linearly with the key size, so scale the key size by how much the window
+    /// must grow to fill the target. Each change restarts Stream Deck and the new window size is
+    /// only known afterwards (e.g. after showing empty keys), so this re-checks on later Apply()
+    /// calls until the deck fits or a few attempts are used up.
     /// </summary>
-    private void FitKeys(RECT target)
+    private void FitKeys(RECT target, RECT current)
     {
-        if (_fitting || DateTime.Now - _lastFit < TimeSpan.FromMinutes(2)) return;
-        if (!GetWindowRect(_window, out var current) || current.Width <= 0 || current.Height <= 0) return;
+        if (_fitting || _fitAttempts >= MaxFitAttempts || DateTime.Now - _lastFit < TimeSpan.FromSeconds(12)) return;
+        if (current.Width <= 0 || current.Height <= 0) return;
 
-        var scale = Math.Min((double)target.Width / current.Width, (double)target.Height / current.Height) * 0.94;
-        if (Math.Abs(scale - 1) < 0.12) return; // already close enough
+        var scale = Math.Min((double)target.Width / current.Width, (double)target.Height / current.Height) * 0.96;
+        var hideEmpty = StreamDeckSettings.ReadHideEmptyKeys();
+        var emptyKeysWrong = hideEmpty is { } h && h == _showEmptyKeys;
+        if (!emptyKeysWrong && Math.Abs(scale - 1) < 0.08)
+        {
+            _fitAttempts = MaxFitAttempts; // fits; stop checking until the goal changes
+            _fittedFor = target;
+            return;
+        }
 
         _fitting = true;
+        _fitAttempts++;
         _lastFit = DateTime.Now;
+        _fittedFor = target;
         System.Threading.Tasks.Task.Run(() =>
         {
             try
             {
                 if (StreamDeckSettings.ReadKeySize() is not { } keySize) return;
-                var wanted = (int)Math.Round(keySize * scale);
-                Log.Info($"Fitting Virtual Stream Deck: window {current.Width}x{current.Height}, slot {target.Width}x{target.Height}, key size {keySize} -> {wanted}");
-                if (StreamDeckSettings.SetKeySize(wanted)) _window = IntPtr.Zero; // Stream Deck recreates its window
+                // When only the empty-keys setting changes, keep the size: the next pass measures the new shape.
+                var wanted = emptyKeysWrong ? keySize : (int)Math.Round(keySize * scale);
+                Log.Info($"Fitting Virtual Stream Deck (pass {_fitAttempts}): window {current.Width}x{current.Height}, slot {target.Width}x{target.Height}, key size {keySize} -> {wanted}, show empty keys {_showEmptyKeys}");
+                if (StreamDeckSettings.Apply(wanted, _showEmptyKeys)) _window = IntPtr.Zero; // Stream Deck recreates its window
             }
             catch (Exception ex)
             {
@@ -94,6 +112,8 @@ public sealed class StreamDeckDock
         var y = t.Top + Math.Max(0, (t.Height - current.Height) / 2);
         // Always re-assert TOPMOST: the panel is topmost too, and the last one set wins.
         SetWindowPos(hwnd, HWND_TOPMOST, x, y, 0, 0, SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+
+        if (_fit) FitKeys(t, current);
     }
 
     /// <summary>Puts the deck back where it was before Edge Panel docked it (on exit or desktop mode).</summary>

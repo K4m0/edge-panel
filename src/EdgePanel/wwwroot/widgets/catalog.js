@@ -250,8 +250,9 @@ window.EDGE_CATALOG = [
   {
     type: "streamDeck", name: "Stream Deck", icon: "deck", category: "Control",
     sizes: ["S", "W", "M", "L", "XL"], defaultSize: "W",
-    defaults: { label: "", fit: true },
+    defaults: { label: "", fit: true, showEmptyKeys: true },
     fields: [
+      { key: "showEmptyKeys", label: "Show empty keys", type: "toggle", help: "Shows the whole key grid, including keys with no action." },
       {
         key: "fit", label: "Fill the widget", type: "toggle",
         help: "Changes the Virtual Stream Deck key size so it fills this widget. Stream Deck restarts once when the size changes.",

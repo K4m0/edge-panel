@@ -68,6 +68,8 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
         var dpi = menu.DeviceDpi;
         var size = (int)Math.Round(20 * dpi / 96.0);
         menu.ImageScalingSize = new Size(size, size);
+        // Room for the longest label plus the switch, so nothing gets cut at the right edge.
+        menu.MinimumSize = new Size((int)Math.Round(290 * dpi / 96.0), 0);
         foreach (ToolStripItem item in menu.Items)
         {
             if (!Glyphs.TryGetValue(item, out var info) || info.Dpi == dpi) continue;
@@ -141,7 +143,9 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
     private static void DrawSwitch(Graphics g, ToolStripMenuItem item)
     {
         int w = Scale(item, 32), h = Scale(item, 18), pad = Scale(item, 3);
-        var x = item.Width - w - Scale(item, 12);
+        // At non-100% DPI the item can be laid out wider than the visible menu; anchor to what is shown.
+        var right = item.Owner is { } owner ? Math.Min(item.Width, owner.ClientSize.Width - item.Bounds.X - Scale(item, 6)) : item.Width;
+        var x = right - w - Scale(item, 10);
         var y = (item.Height - h) / 2;
         using var track = RoundedRect(new Rectangle(x, y, w, h), h / 2);
         using var trackBrush = new SolidBrush(item.Checked ? Accent : Border);

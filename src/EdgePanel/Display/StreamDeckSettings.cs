@@ -32,8 +32,18 @@ public static class StreamDeckSettings
         return json?["keySize"]?.GetValue<int>();
     }
 
-    /// <summary>Sets the key size, restarting Stream Deck. Returns false if nothing was changed.</summary>
-    public static bool SetKeySize(int keySize)
+    /// <summary>Whether empty keys are hidden (the deck then shrinks to the used columns).</summary>
+    public static bool? ReadHideEmptyKeys()
+    {
+        var (json, _, _) = ReadConfig();
+        return json?["hideEmptyKeys"]?.GetValue<bool>();
+    }
+
+    /// <summary>
+    /// Sets the key size and whether empty keys show, restarting Stream Deck.
+    /// Returns false if nothing was changed.
+    /// </summary>
+    public static bool Apply(int keySize, bool showEmptyKeys)
     {
         keySize = Math.Clamp(keySize, MinKeySize, MaxKeySize);
 
@@ -53,7 +63,7 @@ public static class StreamDeckSettings
             return false;
         }
 
-        if (json["keySize"]?.GetValue<int>() == keySize)
+        if (json["keySize"]?.GetValue<int>() == keySize && json["hideEmptyKeys"]?.GetValue<bool>() == !showEmptyKeys)
         {
             Restart(exe);
             return false;
@@ -61,8 +71,9 @@ public static class StreamDeckSettings
 
         Backup(raw);
         json["keySize"] = keySize;
+        json["hideEmptyKeys"] = !showEmptyKeys;
         Write(raw, span, json.ToJsonString());
-        Log.Info($"Virtual Stream Deck key size set to {keySize}");
+        Log.Info($"Virtual Stream Deck key size set to {keySize}, empty keys {(showEmptyKeys ? "shown" : "hidden")}");
         Restart(exe);
         return true;
     }

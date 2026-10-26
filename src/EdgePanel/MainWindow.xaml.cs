@@ -225,13 +225,14 @@ public partial class MainWindow : Window
         int Px(string key) => (int)Math.Round(r.GetProperty(key).GetDouble() * dpr);
         var b = edge.Bounds;
         var fit = root.TryGetProperty("fit", out var f) && f.ValueKind == JsonValueKind.True;
+        var showEmpty = !root.TryGetProperty("showEmptyKeys", out var se) || se.ValueKind != JsonValueKind.False;
         var found = _streamDeck.SetTarget(new RECT
         {
             Left = b.Left + Px("x"),
             Top = b.Top + Px("y"),
             Right = b.Left + Px("x") + Px("w"),
             Bottom = b.Top + Px("y") + Px("h"),
-        }, fit);
+        }, fit, showEmpty);
         // Lets the widget hide its setup hint once the real deck covers it.
         Post(new { type = "dockState", widgetId = Str(root, "widgetId"), found });
     }
