@@ -61,7 +61,7 @@ Before you start:
 - **Close iCUE, or switch its Edge screen to Desktop mode,** so the two don't fight over the display.
 - Map touch to the Edge once, so touches land on the right screen: go to *Control Panel → Tablet PC Settings → Setup → Touch input* and tap the Edge.
 - Install the WebView2 Runtime if you're on Windows 10. Windows 11 already includes it.
-- **CPU temperature** only shows when Edge Panel runs as administrator, because LibreHardwareMonitor requires it. To get CPU temperature at startup, use Task Scheduler: an "At log on" trigger with "Run with highest privileges".
+- **CPU temperature** needs administrator rights, because LibreHardwareMonitor requires them. Turn on **App Settings → Run as administrator**. Windows asks for permission once and Edge Panel creates a scheduled task with highest privileges. After that it starts elevated without UAC prompts, both at logon and from shortcuts.
 
 Your settings are stored in `%LOCALAPPDATA%\EdgePanel\config.json`. Images and videos you add are copied to `%LOCALAPPDATA%\EdgePanel\media`. The log is `%LOCALAPPDATA%\EdgePanel\edge-panel.log`.
 

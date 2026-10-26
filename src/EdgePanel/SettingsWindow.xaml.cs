@@ -153,8 +153,12 @@ public partial class SettingsWindow : Window
         var config = root.GetProperty("config").Deserialize<AppConfig>(AppConfig.JsonOptions) ?? new AppConfig();
         config.Normalize();
         config.Save();
-        if (root.TryGetProperty("startWithWindows", out var startup) && startup.ValueKind is JsonValueKind.True or JsonValueKind.False)
-            WindowsStartup.SetEnabled(startup.GetBoolean());
+        var startWithWindows = root.TryGetProperty("startWithWindows", out var startup) && startup.ValueKind is JsonValueKind.True or JsonValueKind.False
+            ? startup.GetBoolean()
+            : WindowsStartup.IsEnabled();
+        // Only touch startup when something changed: admin mode may need a UAC prompt.
+        if (startWithWindows != WindowsStartup.IsEnabled() || config.RunAsAdmin != _getConfig().RunAsAdmin)
+            WindowsStartup.Apply(startWithWindows, config.RunAsAdmin);
 
         var problems = _apply(config);
         Post(new { type = "saved" });

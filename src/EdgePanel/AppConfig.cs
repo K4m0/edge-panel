@@ -50,6 +50,9 @@ public sealed class AppConfig
 
     public bool DevTools { get; set; }
 
+    /// <summary>Run elevated (via a scheduled task) so LibreHardwareMonitor can read CPU temperatures.</summary>
+    public bool RunAsAdmin { get; set; }
+
     /// <summary>"panel" (dashboard on the Edge) or "desktop" (panel hidden, Edge is a normal monitor).</summary>
     public string DisplayMode { get; set; } = DisplayModes.Panel;
 

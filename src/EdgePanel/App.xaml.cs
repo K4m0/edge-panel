@@ -26,8 +26,17 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
+        var config = AppConfig.Load();
+
+        // Admin mode: hand over to an elevated copy (via the scheduled task, so no UAC prompt) before taking the mutex.
+        if (config.RunAsAdmin && !WindowsStartup.IsElevated && WindowsStartup.StartElevatedCopy())
+        {
+            Shutdown();
+            return;
+        }
+
         _singleInstance = new Mutex(true, @"Local\EdgePanel.SingleInstance", out var isFirst);
-        if (!isFirst)
+        if (!isFirst && !WaitForPreviousInstance(_singleInstance))
         {
             Shutdown();
             return;
@@ -40,7 +49,8 @@ public partial class App : System.Windows.Application
         };
 
         WindowIcon = LoadWindowIcon();
-        _config = AppConfig.Load();
+        _config = config;
+        Log.Info($"Elevated: {WindowsStartup.IsElevated}");
         _panel = new MainWindow(_config);
         _panel.DisplayModeChanged += SaveQuietly;
         _panel.Show();
@@ -49,6 +59,26 @@ public partial class App : System.Windows.Application
         Log.Info("Edge Panel started");
 
         if (e.Args.Length > 0 && e.Args[0] == "--settings") OpenSettings();
+    }
+
+    /// <summary>
+    /// A copy started by the elevated relaunch (or right after Exit) may race the old instance;
+    /// give it a moment to exit instead of quitting immediately.
+    /// </summary>
+    private static bool WaitForPreviousInstance(Mutex mutex)
+    {
+        try { return mutex.WaitOne(TimeSpan.FromSeconds(6)); }
+        catch (AbandonedMutexException) { return true; }
+    }
+
+    /// <summary>Restarts elevated after admin mode is turned on from a non-elevated instance.</summary>
+    private void RelaunchElevatedIfNeeded()
+    {
+        if (!_config.RunAsAdmin || WindowsStartup.IsElevated) return;
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (WindowsStartup.StartElevatedCopy()) Shutdown();
+        });
     }
 
     private Forms.NotifyIcon BuildTray(MainWindow panel)
@@ -79,7 +109,10 @@ public partial class App : System.Windows.Application
         };
 
         var startup = new Forms.ToolStripMenuItem("Start with Windows") { CheckOnClick = true };
-        startup.CheckedChanged += (_, _) => { if (startup.Checked != WindowsStartup.IsEnabled()) WindowsStartup.SetEnabled(startup.Checked); };
+        startup.CheckedChanged += (_, _) =>
+        {
+            if (startup.Checked != WindowsStartup.IsEnabled()) WindowsStartup.Apply(startup.Checked, _config.RunAsAdmin);
+        };
 
         // Refresh check marks every time the menu opens, since Settings can change them too.
         menu.Opening += (_, _) =>
@@ -129,7 +162,9 @@ public partial class App : System.Windows.Application
         var settings = new SettingsWindow(_panel, () => _config, config =>
         {
             _config = config;
-            return _panel.ApplyConfig(config);
+            var problems = _panel.ApplyConfig(config);
+            RelaunchElevatedIfNeeded();
+            return problems;
         });
         // Live preview: the settings page gets the same sensors/media/audio/icons as the panel.
         Action<string> mirror = settings.Mirror;
