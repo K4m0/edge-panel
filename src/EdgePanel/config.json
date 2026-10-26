@@ -1,0 +1,31 @@
+{
+  // How the Edge is found. The friendly name comes from the monitor's EDID.
+  // If your Edge reports a different name, check the log (tray > Open log) and adjust.
+  "monitor": {
+    "nameContains": "XENEON EDGE",
+    "fallbackWidth": 2560,
+    "fallbackHeight": 720
+  },
+
+  // Keep the physical mouse out of the Edge; touch still works.
+  "mouseGuard": true,
+
+  // Push other apps' windows that land on the Edge back to the main display.
+  "evictWindows": true,
+
+  // Touching the panel does not take focus away from the active app (games keep focus).
+  "noActivate": true,
+
+  "sensorIntervalMs": 1000,
+  "devTools": false,
+
+  // Launcher buttons. "target" is anything Windows can open: exe path, URL or URI scheme.
+  "shortcuts": [
+    { "label": "Spotify", "icon": "music", "target": "spotify:" },
+    { "label": "Discord", "icon": "chat", "target": "discord:" },
+    { "label": "Steam", "icon": "game", "target": "steam://open/main" },
+    { "label": "Calculator", "icon": "calc", "target": "calc.exe" },
+    { "label": "Task Manager", "icon": "chart", "target": "taskmgr.exe" },
+    { "label": "Browser", "icon": "globe", "target": "https://www.google.com" }
+  ]
+}

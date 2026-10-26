@@ -1,0 +1,136 @@
+:root {
+  --bg: #07090c;
+  --card: #11151b;
+  --card-edge: #1c222b;
+  --text: #e8edf3;
+  --muted: #7d8794;
+  --accent: #f2c94c;
+  --ok: #4cd18a;
+  --warn: #f2994a;
+  --hot: #eb5757;
+  --gap: clamp(8px, 1.6vh, 16px);
+  --radius: clamp(12px, 2.4vh, 22px);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+[hidden] { display: none !important; }
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+  cursor: default;
+}
+
+.grid {
+  height: 100vh;
+  padding: var(--gap);
+  display: grid;
+  gap: var(--gap);
+  grid-template-columns: 1.3fr 0.8fr 0.8fr 0.8fr 1.7fr 1.6fr;
+}
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--card-edge);
+  border-radius: var(--radius);
+  padding: clamp(10px, 2.4vh, 24px);
+  min-width: 0;
+  position: relative;
+}
+
+h2 {
+  font-size: clamp(12px, 2.6vh, 20px);
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  color: var(--muted);
+}
+
+/* Clock */
+.clock { display: grid; align-content: center; justify-items: start; padding-left: clamp(16px, 4vh, 40px); }
+.time { font-size: clamp(44px, 19vh, 150px); font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.time .period { font-size: 0.3em; color: var(--muted); margin-left: 0.2em; }
+.seconds { font-size: clamp(14px, 4vh, 32px); color: var(--accent); font-variant-numeric: tabular-nums; margin-top: 0.4vh; }
+.date { font-size: clamp(14px, 4.4vh, 34px); color: var(--muted); margin-top: 1.4vh; }
+
+/* Gauges */
+.gauge { display: grid; grid-template-rows: auto 1fr auto; justify-items: center; }
+.gauge h2 { justify-self: start; }
+.ring { width: min(100%, 44vh); align-self: center; transform: rotate(-90deg); }
+.ring circle { fill: none; stroke-width: 10; }
+.ring .track { stroke: var(--card-edge); }
+.ring .value {
+  stroke: var(--ok);
+  stroke-linecap: round;
+  stroke-dasharray: 314.16;
+  stroke-dashoffset: 314.16;
+  transition: stroke-dashoffset 0.6s ease, stroke 0.6s ease;
+}
+.readout {
+  position: absolute;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: clamp(22px, 8vh, 64px);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.readout small { font-size: 0.45em; color: var(--muted); margin-left: 2px; }
+.sub { font-size: clamp(12px, 3.4vh, 26px); color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Media */
+.media { display: grid; grid-template-rows: 1fr auto auto; gap: var(--gap); }
+.now { align-self: center; min-width: 0; }
+.title { font-size: clamp(16px, 5.4vh, 42px); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.artist { font-size: clamp(12px, 3.8vh, 28px); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 0.6vh; }
+
+.controls { display: flex; gap: var(--gap); }
+.controls button { flex: 1; }
+
+button {
+  height: clamp(44px, 14vh, 110px);
+  border: 1px solid var(--card-edge);
+  border-radius: calc(var(--radius) * 0.8);
+  background: #171c24;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font: inherit;
+  font-size: clamp(16px, 4.4vh, 34px);
+  transition: transform 0.08s ease, background 0.15s ease;
+}
+button:active { transform: scale(0.95); background: #222a35; }
+button svg { width: clamp(20px, 6.5vh, 52px); height: clamp(20px, 6.5vh, 52px); fill: currentColor; }
+button.primary { background: var(--accent); color: #111; border-color: transparent; }
+button.primary:active { background: #d9b23d; }
+.volume button { height: clamp(36px, 10vh, 80px); }
+.volume svg { width: clamp(16px, 4.6vh, 36px); height: clamp(16px, 4.6vh, 36px); }
+
+/* Shortcuts */
+.shortcut-grid {
+  height: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-auto-rows: 1fr;
+  gap: var(--gap);
+}
+.shortcut-grid button { height: auto; flex-direction: column; font-size: clamp(11px, 3vh, 22px); color: var(--muted); }
+.shortcut-grid button svg { color: var(--text); }
+
+/* Portrait mount (Edge rotated 90°) */
+@media (orientation: portrait) {
+  .grid {
+    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-rows: 0.9fr 0.7fr 1.1fr 1.2fr;
+  }
+  .clock { grid-column: 1 / -1; }
+  .media, .shortcuts { grid-column: 1 / -1; }
+  .ring { width: min(100%, 22vw); }
+  .time { font-size: 18vw; }
+}
