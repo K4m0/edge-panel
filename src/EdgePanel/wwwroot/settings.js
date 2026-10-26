@@ -123,8 +123,7 @@
   EP.undo = () => { restore(undoStack, redoStack); };
   EP.redo = () => { restore(redoStack, undoStack); };
   const updateUndoButtons = () => {
-    EP.$("undo").disabled = !undoStack.length;
-    EP.$("redo").disabled = !redoStack.length;
+    // Undo/redo stay on Ctrl+Z / Ctrl+Y; there are no toolbar buttons.
   };
 
   let saveTimer = 0;
@@ -204,6 +203,15 @@
     if (!msg || typeof msg !== "object") return;
     switch (msg.type) {
       case "state": {
+        // The host re-sends state after every save. Re-rendering then would drop focus from the
+        // field being typed in (and could undo keystrokes typed since); the editor's config is
+        // already the source of truth, so after the first load only refresh the extras.
+        if (EP.loaded) {
+          EP.startWithWindows = !!msg.startWithWindows;
+          if (Array.isArray(msg.sensorCatalog) && msg.sensorCatalog.length) EP.sensorCatalog = msg.sensorCatalog;
+          break;
+        }
+        EP.loaded = true;
         EP.config = normalize(msg.config);
         EP.startWithWindows = !!msg.startWithWindows;
         EP.configPath = msg.configPath ?? "";
@@ -290,8 +298,8 @@
       const d = { ArrowDown: 1, ArrowUp: -1 }[e.key];
       if (i >= 0 && d) { e.preventDefault(); items[(i + d + items.length) % items.length].focus(); }
     });
-    EP.$("undo").addEventListener("click", EP.undo);
-    EP.$("redo").addEventListener("click", EP.redo);
+
+
 
     const iframe = frame();
     iframe.addEventListener("load", () => { previewReady = true; replayPreview(); });

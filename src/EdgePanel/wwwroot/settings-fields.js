@@ -177,7 +177,17 @@
     },
 
     sensor(f, ctx) {
-      return EP.sensorPicker(ctx.get(f.key) ?? "", (v) => ctx.set(f.key, v), f.label);
+      // "left.sensor" pairs with "left.name": picking a sensor fills its name, unless the user typed a custom one.
+      const nameKey = f.key.replace(/sensor$/, "name");
+      return EP.sensorPicker(ctx.get(f.key) ?? "", (v) => {
+        if (nameKey !== f.key) {
+          const prevName = EP.sensorInfo(ctx.get(f.key))?.name;
+          const name = ctx.get(nameKey);
+          if (!name || name === prevName) ctx.set(nameKey, EP.sensorInfo(v)?.name ?? name);
+        }
+        ctx.set(f.key, v);
+        if (nameKey !== f.key) EP.renderSidePanels?.(); // show the new name in its input
+      }, f.label);
     },
 
     media(f, ctx) {

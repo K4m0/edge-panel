@@ -435,12 +435,13 @@ EP.toggle = (checked, onChange, label) => {
 
 EP.segmented = (options, value, onChange, { label = "", disabled = () => false, titles = {} } = {}) => {
   const box = h("div", { class: "seg", role: "radiogroup", "aria-label": label });
-  options.forEach(([v, text]) => {
+  options.forEach(([v, text, hint]) => {
     const on = String(v) === String(value);
     const off = disabled(v);
     const b = h("button", {
       type: "button", role: "radio", "aria-checked": String(on), class: on ? "on" : "",
-      tabIndex: on ? 0 : -1, disabled: off, title: (off ? titles[v] : "") || text,
+      // An optional third option item explains the choice on hover.
+      tabIndex: on ? 0 : -1, disabled: off, title: (off ? titles[v] : "") || hint || text,
       onclick: () => {
         if (String(v) === String(value)) return;
         value = v;

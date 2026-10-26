@@ -5,6 +5,12 @@
 
 const MEDIA_ACTIONS = [["toggle", "Play / pause"], ["next", "Next track"], ["prev", "Previous track"], ["volup", "Volume up"], ["voldown", "Volume down"], ["mute", "Mute"]];
 
+// Third item = tooltip shown on hover in the settings editor.
+const SENSOR_MODES = [
+  ["gauge", "Gauge", "A ring that fills with the value, with the number inside. E.g. CPU load 63% fills 63% of the ring."],
+  ["value", "Value", "Just the number, large. E.g. \"70 °C\" for a temperature."],
+];
+
 window.EDGE_SIZES = {
   S: { cols: 1, rows: 1, label: "S" },
   W: { cols: 2, rows: 1, label: "Wide" },
@@ -18,7 +24,7 @@ window.EDGE_GRID = { cols: 4, rows: 2 };
 window.EDGE_CATALOG = [
   // Time
   {
-    type: "clock", name: "Clock Face", icon: "clock", category: "Time",
+    type: "clock", description: "Time and date in several faces (digital, analog, flip), with time zones.", name: "Clock Face", icon: "clock", category: "Time",
     sizes: ["S", "W", "M", "L", "XL"], defaultSize: "S",
     defaults: { face: "digital", hour12: "auto", seconds: true, timeZone: "", date: "short", customText: "" },
     fields: [
@@ -31,13 +37,13 @@ window.EDGE_CATALOG = [
     ],
   },
   {
-    type: "calendar", name: "Calendar", icon: "calendar", category: "Time",
+    type: "calendar", description: "Month view with today highlighted.", name: "Calendar", icon: "calendar", category: "Time",
     sizes: ["S", "M", "L"], defaultSize: "S",
     defaults: { firstDay: 1 },
     fields: [{ key: "firstDay", label: "Week starts on", type: "segmented", options: [[1, "Monday"], [0, "Sunday"]] }],
   },
   {
-    type: "chronograph", name: "Chronograph", icon: "timer", category: "Time",
+    type: "chronograph", description: "Stopwatch with laps, or a countdown timer.", name: "Chronograph", icon: "timer", category: "Time",
     sizes: ["S", "W", "M"], defaultSize: "S",
     defaults: { mode: "stopwatch", timerMinutes: 5 },
     fields: [
@@ -48,7 +54,7 @@ window.EDGE_CATALOG = [
 
   // System
   {
-    type: "sensorPair", name: "2 Sensors", icon: "gauge2", category: "System",
+    type: "sensorPair", description: "Two hardware readings side by side, e.g. CPU and GPU load.", name: "2 Sensors", icon: "gauge2", category: "System",
     sizes: ["S", "W"], defaultSize: "S",
     defaults: {
       left: { sensor: "cpu.load", mode: "gauge", name: "CPU Load" },
@@ -56,27 +62,27 @@ window.EDGE_CATALOG = [
     },
     fields: [
       { key: "left.sensor", label: "Left sensor", type: "sensor" },
-      { key: "left.mode", label: "Type", type: "segmented", options: [["gauge", "Gauge"], ["value", "Value"]] },
       { key: "left.name", label: "Name", type: "text" },
+      { key: "left.mode", label: "Type", type: "segmented", options: SENSOR_MODES },
       { key: "right.sensor", label: "Right sensor", type: "sensor" },
-      { key: "right.mode", label: "Type", type: "segmented", options: [["gauge", "Gauge"], ["value", "Value"]] },
       { key: "right.name", label: "Name", type: "text" },
+      { key: "right.mode", label: "Type", type: "segmented", options: SENSOR_MODES },
     ],
   },
   {
-    type: "gauge", name: "Sensor", icon: "gauge", category: "System",
+    type: "gauge", description: "One hardware reading as a ring gauge or a big number.", name: "Sensor", icon: "gauge", category: "System",
     sizes: ["S", "M"], defaultSize: "S",
     defaults: { sensor: "cpu.temp", name: "CPU Temp", mode: "gauge", min: 0, max: 100 },
     fields: [
       { key: "sensor", label: "Sensor", type: "sensor" },
       { key: "name", label: "Name", type: "text" },
-      { key: "mode", label: "Type", type: "segmented", options: [["gauge", "Gauge"], ["value", "Value"]] },
+      { key: "mode", label: "Type", type: "segmented", options: SENSOR_MODES },
       { key: "min", label: "Gauge min", type: "number", step: 1 },
       { key: "max", label: "Gauge max", type: "number", step: 1 },
     ],
   },
   {
-    type: "sensorChart", name: "Sensor Chart", icon: "chart", category: "System",
+    type: "sensorChart", description: "Live line chart of a reading over the last minutes.", name: "Sensor Chart", icon: "chart", category: "System",
     sizes: ["S", "W", "L", "XL"], defaultSize: "W",
     defaults: { sensor: "cpu.load", name: "CPU Load", minutes: 2, color: "" },
     fields: [
@@ -87,7 +93,7 @@ window.EDGE_CATALOG = [
     ],
   },
   {
-    type: "sensorList", name: "Sensor List", icon: "list", category: "System",
+    type: "sensorList", description: "A list of several hardware readings.", name: "Sensor List", icon: "list", category: "System",
     sizes: ["S", "M", "W", "L"], defaultSize: "M",
     defaults: {
       sensors: [
@@ -104,7 +110,7 @@ window.EDGE_CATALOG = [
 
   // Media & audio
   {
-    type: "media", name: "Media", icon: "play", category: "Media",
+    type: "media", description: "What's playing (Spotify, browser…) with album art and playback controls.", name: "Media", icon: "play", category: "Media",
     sizes: ["S", "W", "M", "L"], defaultSize: "M",
     defaults: { showArt: true, showVolume: true },
     fields: [
@@ -113,7 +119,7 @@ window.EDGE_CATALOG = [
     ],
   },
   {
-    type: "volume", name: "Volume", icon: "volume", category: "Media",
+    type: "volume", description: "Output device, master and mic volume, and per-app volume mixer.", name: "Volume", icon: "volume", category: "Media",
     sizes: ["S", "M", "L"], defaultSize: "M",
     defaults: { showInput: true, showMixer: true },
     fields: [
@@ -122,7 +128,7 @@ window.EDGE_CATALOG = [
     ],
   },
   {
-    type: "image", name: "Image / Video", icon: "image", category: "Media",
+    type: "image", description: "Shows an image or a looping video.", name: "Image / Video", icon: "image", category: "Media",
     sizes: ["S", "W", "M", "L", "XL"], defaultSize: "S",
     defaults: { source: "file", file: "", url: "", fit: "cover" },
     fields: [
@@ -133,7 +139,7 @@ window.EDGE_CATALOG = [
     ],
   },
   {
-    type: "slideshow", name: "Slideshow", icon: "slides", category: "Media",
+    type: "slideshow", description: "Cycles through your images.", name: "Slideshow", icon: "slides", category: "Media",
     sizes: ["S", "W", "M", "L", "XL"], defaultSize: "W",
     defaults: { files: [], intervalSec: 8, fit: "cover", shuffle: false },
     fields: [
@@ -144,7 +150,7 @@ window.EDGE_CATALOG = [
     ],
   },
   {
-    type: "youtube", name: "YouTube Video", icon: "youtube", category: "Media",
+    type: "youtube", description: "Plays a YouTube video or playlist.", name: "YouTube Video", icon: "youtube", category: "Media",
     sizes: ["S", "W", "M", "L", "XL"], defaultSize: "L",
     defaults: { url: "", mute: true, loop: true },
     fields: [
@@ -156,7 +162,7 @@ window.EDGE_CATALOG = [
 
   // Web
   {
-    type: "webUrl", name: "Web URL", icon: "globe", category: "Web",
+    type: "webUrl", description: "Shows any web page.", name: "Web URL", icon: "globe", category: "Web",
     sizes: ["S", "W", "M", "L", "XL"], defaultSize: "L",
     defaults: { url: "https://", zoom: 1, refreshMin: 0 },
     fields: [
@@ -166,13 +172,13 @@ window.EDGE_CATALOG = [
     ],
   },
   {
-    type: "iframe", name: "iFrame", icon: "code", category: "Web",
+    type: "iframe", description: "Shows your own HTML snippet.", name: "iFrame", icon: "code", category: "Web",
     sizes: ["S", "W", "M", "L", "XL"], defaultSize: "S",
     defaults: { html: "<div style=\"color:#fff;font:24px sans-serif;display:grid;place-items:center;height:100%\">Hello</div>" },
     fields: [{ key: "html", label: "HTML", type: "textarea" }],
   },
   {
-    type: "twitch", name: "Twitch Chat", icon: "twitch", category: "Web",
+    type: "twitch", description: "Live chat of a Twitch channel.", name: "Twitch Chat", icon: "twitch", category: "Web",
     sizes: ["M", "L", "XL"], defaultSize: "M",
     defaults: { channel: "", dark: true },
     fields: [
@@ -181,13 +187,13 @@ window.EDGE_CATALOG = [
     ],
   },
   {
-    type: "simhub", name: "SimHub", icon: "car", category: "Web",
+    type: "simhub", description: "SimHub dashboard for sim racing.", name: "SimHub", icon: "car", category: "Web",
     sizes: ["W", "L", "XL"], defaultSize: "XL",
     defaults: { url: "http://localhost:8888/" },
     fields: [{ key: "url", label: "SimHub dash URL", type: "url" }],
   },
   {
-    type: "weather", name: "Weather", icon: "weather", category: "Web",
+    type: "weather", description: "Current weather and forecast for a city.", name: "Weather", icon: "weather", category: "Web",
     sizes: ["S", "W", "L"], defaultSize: "W",
     defaults: { location: null, units: "metric", showAqi: true },
     fields: [
@@ -197,7 +203,7 @@ window.EDGE_CATALOG = [
     ],
   },
   {
-    type: "aqi", name: "AQI", icon: "aqi", category: "Web",
+    type: "aqi", description: "Air quality index for a city.", name: "AQI", icon: "aqi", category: "Web",
     sizes: ["S"], defaultSize: "S",
     defaults: { location: null, scale: "us" },
     fields: [
@@ -208,7 +214,7 @@ window.EDGE_CATALOG = [
 
   // Control
   {
-    type: "launcher", name: "Launch App", icon: "apps", category: "Control",
+    type: "launcher", description: "Buttons that open your apps, files or links.", name: "Launch App", icon: "apps", category: "Control",
     sizes: ["S", "W", "M", "L", "XL"], defaultSize: "M",
     defaults: {
       columns: 0,
@@ -227,7 +233,7 @@ window.EDGE_CATALOG = [
     ],
   },
   {
-    type: "deck", name: "Button Deck", icon: "deck", category: "Control",
+    type: "deck", description: "Colored buttons that send keystrokes, open apps, control media or switch pages.", name: "Button Deck", icon: "deck", category: "Control",
     sizes: ["S", "W", "M", "L", "XL"], defaultSize: "L",
     defaults: {
       columns: 4,
@@ -248,7 +254,7 @@ window.EDGE_CATALOG = [
     ],
   },
   {
-    type: "streamDeck", name: "Stream Deck", icon: "deck", category: "Control",
+    type: "streamDeck", description: "Your Elgato Virtual Stream Deck, with your own Stream Deck profile.", name: "Stream Deck", icon: "deck", category: "Control",
     sizes: ["S", "W", "M", "L", "XL"], defaultSize: "W",
     defaults: { label: "", fit: true, showEmptyKeys: true },
     fields: [
@@ -265,13 +271,13 @@ window.EDGE_CATALOG = [
     ],
   },
   {
-    type: "keyboard", name: "Virtual Keyboard", icon: "keyboard", category: "Control",
+    type: "keyboard", description: "On-screen keyboard that types into the app in front.", name: "Virtual Keyboard", icon: "keyboard", category: "Control",
     sizes: ["L", "XL"], defaultSize: "XL",
     defaults: { layout: "qwerty", sound: false },
     fields: [{ key: "layout", label: "Layout", type: "segmented", options: [["qwerty", "QWERTY"], ["numpad", "Numpad"]] }],
   },
   {
-    type: "touchpad", name: "Virtual Touchpad", icon: "touchpad", category: "Control",
+    type: "touchpad", description: "Drag to move the mouse on your main screen; tap to click.", name: "Virtual Touchpad", icon: "touchpad", category: "Control",
     sizes: ["S", "W", "M", "L", "XL"], defaultSize: "L",
     defaults: { sensitivity: 1.8, tapToClick: true, buttons: true },
     fields: [
@@ -283,7 +289,7 @@ window.EDGE_CATALOG = [
 
   // Fun
   {
-    type: "coin", name: "Decision Coin", icon: "coin", category: "Fun",
+    type: "coin", description: "Flip a coin to decide.", name: "Decision Coin", icon: "coin", category: "Fun",
     sizes: ["S", "M"], defaultSize: "S",
     defaults: { heads: "Yes", tails: "No" },
     fields: [

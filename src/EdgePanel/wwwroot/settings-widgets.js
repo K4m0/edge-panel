@@ -112,10 +112,27 @@
       const s = EP.sizeOf(w.size);
       const col = EP.clamp(cell.col - drag.dc, 0, EP.GRID.cols - s.cols);
       const row = EP.clamp(cell.row - drag.dr, 0, EP.GRID.rows - s.rows);
-      return { col, row, size: w.size, ok: EP.fits(page, col, row, w.size, w.id) };
+      if (EP.fits(page, col, row, w.size, w.id)) return { col, row, size: w.size, ok: true };
+      return swapTarget(page, w, cell) ?? { col, row, size: w.size, ok: false };
     }
     if (drag?.kind === "add") return placementAt(drag.type, cell.col, cell.row);
     return null;
+  };
+
+  /**
+   * Dropping a widget onto another one swaps their places when both still fit
+   * (each takes the other's top-left cell). Returns a drop target with `swapWith`, or null.
+   */
+  const swapTarget = (page, a, cell) => {
+    const b = EP.occupantAt(page, cell.col, cell.row);
+    if (!b || b.id === a.id) return null;
+    const others = { widgets: page.widgets.filter((x) => x.id !== a.id && x.id !== b.id) };
+    const aNew = { col: b.col, row: b.row, size: a.size };
+    const bNew = { col: a.col, row: a.row, size: b.size };
+    const ok = EP.inGrid(aNew.col, aNew.row, aNew.size) && EP.inGrid(bNew.col, bNew.row, bNew.size)
+      && EP.fits(others, aNew.col, aNew.row, aNew.size) && EP.fits(others, bNew.col, bNew.row, bNew.size)
+      && !EP.overlaps(aNew, bNew);
+    return ok ? { ...aNew, ok: true, swapWith: b.id } : null;
   };
 
   /** Default size if it fits at (or anchored back from) the cell, else the smallest allowed size that does. */
@@ -166,7 +183,8 @@
       endDrag();
       if (!t) return;
       if (!t.ok) { EP.toast("That spot is taken or too small.", "warn"); return; }
-      if (d.kind === "move") moveWidgetTo(d.id, t.col, t.row);
+      if (d.kind === "move" && t.swapWith) swapWidgets(d.id, t.swapWith);
+      else if (d.kind === "move") moveWidgetTo(d.id, t.col, t.row);
       else addWidget(d.type, t.col, t.row, t.size);
     });
   };
@@ -219,11 +237,12 @@
     return false;
   };
 
-  const deleteWidget = (id) => {
+  const deleteWidget = async (id) => {
     const page = EP.page();
+    const name = EP.widgetName(page.widgets.find((w) => w.id === id) ?? {});
+    if (!(await EP.confirm(`Delete the ${name} widget?`, "Delete"))) return;
     const i = page.widgets.findIndex((w) => w.id === id);
     if (i < 0) return;
-    const name = EP.widgetName(page.widgets[i]);
     EP.edit(() => page.widgets.splice(i, 1), { render: "none" });
     if (EP.selectedId === id) EP.selectedId = null;
     EP.render();
@@ -238,6 +257,17 @@
     EP.selectedId = id;
     EP.render();
     focusBox(id);
+  };
+
+  const swapWidgets = (idA, idB) => {
+    const page = EP.page();
+    const a = page.widgets.find((x) => x.id === idA), b = page.widgets.find((x) => x.id === idB);
+    if (!a || !b) return;
+    EP.edit(() => { [a.col, a.row, b.col, b.row] = [b.col, b.row, a.col, a.row]; }, { render: "none" });
+    EP.selectedId = idA;
+    EP.render();
+    focusBox(idA);
+    EP.toast(`Swapped ${EP.widgetName(a)} and ${EP.widgetName(b)}.`);
   };
 
   const nudge = (id, dc, dr) => {
@@ -422,7 +452,7 @@
       box.append(h("h4", { class: "cat-title" }, cat), h("div", { class: "tiles", role: "list" }, items.map((c) => {
         const tile = h("button", {
           type: "button", class: `tile ${armedType === c.type ? "armed" : ""}`, draggable: true, role: "listitem", dataset: { type: c.type },
-          title: `${c.name}\nSizes: ${c.sizes.join(", ")}\nClick, then click an empty cell. Double-click or Enter to add. Or drag onto the preview.`,
+          title: c.description ? `${c.name}: ${c.description}` : c.name,
           "aria-label": `${c.name}. Sizes ${c.sizes.join(", ")}. Enter adds to the first free spot; Space selects it for placing.`,
         }, h("span", { class: "tile-ico", html: EP.edgeIcon(c.icon) }), h("span", { class: "tile-name" }, c.name));
         tile.addEventListener("click", () => arm(c.type));
@@ -484,7 +514,7 @@
       EP.iconBtn("right", "Move right", () => nudge(w.id, 1, 0), { disabled: !EP.fits(page, w.col + 1, w.row, w.size, w.id) }));
     const pageSel = EP.config.pages.length > 1 && h("select", { "aria-label": "Move to page" },
       h("option", { value: "", selected: true }, "Move to page…"),
-      EP.config.pages.map((p, pi) => pi !== EP.pageIndex && h("option", { value: pi }, `${pi + 1} · ${p.name || "Page " + (pi + 1)}`)));
+      EP.config.pages.map((p, pi) => pi !== EP.pageIndex && h("option", { value: pi }, `${pi + 1} · ${p.name || "Page " + (pi + 1)}`))) || null;
     pageSel?.addEventListener("change", () => { if (pageSel.value !== "") moveToPage(w.id, Number(pageSel.value)); });
 
     body.replaceChildren(

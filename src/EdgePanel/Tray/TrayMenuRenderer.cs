@@ -76,7 +76,8 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
         foreach (ToolStripItem item in menu.Items)
             if (item is ToolStripMenuItem)
                 text = Math.Max(text, TextRenderer.MeasureText(item.Text, item.Font).Width);
-        menu.MinimumSize = new Size(size + S(18) + text + S(24) + S(32) + S(20), 0);
+        // icon column (icon + its margins) + label + gap + switch + right margin
+        menu.MinimumSize = new Size(size + S(16) + text + S(14) + S(32) + S(16), 0);
         foreach (ToolStripItem item in menu.Items)
         {
             if (!Glyphs.TryGetValue(item, out var info) || info.Dpi == dpi) continue;
@@ -115,7 +116,7 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
         g.SmoothingMode = SmoothingMode.AntiAlias;
         if (e.Item.Selected && e.Item.Enabled)
         {
-            var r = new Rectangle(2, 1, e.Item.Width - 4, e.Item.Height - 2);
+            var r = new Rectangle(2, 1, VisibleWidth(e.Item) - 4, e.Item.Height - 2);
             using var path = RoundedRect(r, Scale(e.Item, 6));
             using var brush = new SolidBrush(Hover);
             g.FillPath(brush, path);
@@ -150,9 +151,7 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
     private static void DrawSwitch(Graphics g, ToolStripMenuItem item)
     {
         int w = Scale(item, 32), h = Scale(item, 18), pad = Scale(item, 3);
-        // At non-100% DPI the item can be laid out wider than the visible menu; anchor to what is shown.
-        var right = item.Owner is { } owner ? Math.Min(item.Width, owner.ClientSize.Width - item.Bounds.X - Scale(item, 6)) : item.Width;
-        var x = right - w - Scale(item, 10);
+        var x = VisibleWidth(item) - w - Scale(item, 10);
         var y = (item.Height - h) / 2;
         using var track = RoundedRect(new Rectangle(x, y, w, h), h / 2);
         using var trackBrush = new SolidBrush(item.Checked ? Accent : Border);
@@ -162,6 +161,13 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
         using var knobBrush = new SolidBrush(item.Checked ? Background : Text);
         g.FillEllipse(knobBrush, knob, y + pad, d, d);
     }
+
+    /// <summary>
+    /// Width of the menu row as shown. Items don't always stretch to the menu's width (or can exceed it
+    /// at non-100% DPI), so hover and switches are laid out against the menu itself.
+    /// </summary>
+    private static int VisibleWidth(ToolStripItem item) =>
+        item.Owner is { } owner ? owner.ClientSize.Width - item.Bounds.X - Scale(item, 4) : item.Width;
 
     private static int Scale(ToolStripItem item, int px) => (int)Math.Round(px * (item.Owner?.DeviceDpi ?? 96) / 96.0);
 
