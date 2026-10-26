@@ -63,6 +63,15 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
             RoundCorners(menu.Handle);
             Layout(menu);
         };
+        // The dropdown ends up a bit wider than the rows (WinForms reserves extra room on the right);
+        // stretch the rows to the real inner width so margins are even on both sides.
+        menu.Opened += (_, _) =>
+        {
+            var inner = menu.DisplayRectangle.Width;
+            foreach (ToolStripItem item in menu.Items)
+                if (item is not ToolStripSeparator && item.Width != inner) item.Width = inner;
+            menu.Invalidate();
+        };
     }
 
     /// <summary>Menu row with an icon. Checkable rows show a round check mark on the right.</summary>
