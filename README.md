@@ -54,7 +54,7 @@ These iCUE features need a vendor SDK or Windows features that are unavailable t
 
 ## Install
 
-Download `EdgePanel.exe` from [Releases](https://github.com/K4m0/edge-panel/releases) and run it. It is a single self-contained file, so .NET doesn't need to be installed. Put it somewhere permanent before you turn on **Start with Windows**, because that setting remembers the exe's location.
+Build `EdgePanel.exe` (see [Build](#build)) and run it. It is a single self-contained file, so .NET doesn't need to be installed on the machine that runs it. Put it somewhere permanent before you turn on **Start with Windows**, because that setting remembers the exe's location.
 
 Before you start:
 
