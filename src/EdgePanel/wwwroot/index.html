@@ -7,58 +7,40 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <!-- Widgets are built from these templates in the order and sizes set in Settings. -->
-  <main id="grid" class="grid"></main>
-
-  <template id="tpl-clock">
-    <section class="card clock">
-      <div class="time">--:--</div>
-      <div class="seconds">--</div>
-      <div class="date">&nbsp;</div>
-    </section>
-  </template>
-
-  <template id="tpl-gauge">
-    <section class="card gauge">
-      <h2></h2>
-      <svg viewBox="0 0 120 120" class="ring">
-        <circle class="track" cx="60" cy="60" r="50" />
-        <circle class="value" cx="60" cy="60" r="50" />
-      </svg>
-      <div class="readout"><span class="load">--</span><small>%</small></div>
-      <div class="sub">&nbsp;</div>
-    </section>
-  </template>
-
-  <template id="tpl-media">
-    <section class="card media">
-      <div class="now">
-        <div class="title">Nothing playing</div>
-        <div class="artist">&nbsp;</div>
-      </div>
-      <div class="controls">
-        <button data-media="prev" aria-label="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zM20 6v12L9.5 12z"/></svg></button>
-        <button data-media="toggle" class="primary" aria-label="Play or pause">
-          <svg class="icon-play" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
-          <svg class="icon-pause" viewBox="0 0 24 24" hidden><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
-        </button>
-        <button data-media="next" aria-label="Next"><svg viewBox="0 0 24 24"><path d="M16 6h2v12h-2zM4 6v12l10.5-6z"/></svg></button>
-      </div>
-      <div class="controls volume">
-        <button data-volume="down" aria-label="Volume down"><svg viewBox="0 0 24 24"><path d="M5 9v6h4l5 5V4L9 9zM16.5 12A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4z"/></svg><span>−</span></button>
-        <button data-volume="mute" aria-label="Mute"><svg viewBox="0 0 24 24"><path d="M5 9v6h4l5 5V4L9 9zM22 9.4 20.6 8 18 10.6 15.4 8 14 9.4l2.6 2.6-2.6 2.6 1.4 1.4 2.6-2.6 2.6 2.6 1.4-1.4-2.6-2.6z"/></svg></button>
-        <button data-volume="up" aria-label="Volume up"><svg viewBox="0 0 24 24"><path d="M5 9v6h4l5 5V4L9 9zM16.5 12A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4zM14 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z"/></svg><span>+</span></button>
-      </div>
-    </section>
-  </template>
-
-  <template id="tpl-shortcuts">
-    <section class="card shortcuts">
-      <div class="shortcut-grid"></div>
-    </section>
-  </template>
+  <main id="viewport" class="viewport">
+    <div id="track" class="track"></div>
+  </main>
+  <nav id="dots" class="dots" aria-label="Pages"></nav>
+  <div id="empty" class="empty" hidden>
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="M3 5h5v6H3zm6.5 0h5v6h-5zM16 5h5v6h-5zM3 13h5v6H3zm6.5 0h5v6h-5zM16 13h5v6h-5z"/></svg>
+    <p>No widgets yet</p>
+    <small>Open Settings from the tray icon to add pages and widgets.</small>
+  </div>
 
   <script src="icons.js"></script>
+  <script src="widgets/catalog.js"></script>
+  <script src="widgets/base.js"></script>
+  <script src="widgets/clock.js"></script>
+  <script src="widgets/calendar.js"></script>
+  <script src="widgets/chronograph.js"></script>
+  <script src="widgets/sensorPair.js"></script>
+  <script src="widgets/gauge.js"></script>
+  <script src="widgets/sensorChart.js"></script>
+  <script src="widgets/sensorList.js"></script>
+  <script src="widgets/media.js"></script>
+  <script src="widgets/volume.js"></script>
+  <script src="widgets/image.js"></script>
+  <script src="widgets/slideshow.js"></script>
+  <script src="widgets/youtube.js"></script>
+  <script src="widgets/webUrl.js"></script>
+  <script src="widgets/iframe.js"></script>
+  <script src="widgets/twitch.js"></script>
+  <script src="widgets/weather.js"></script>
+  <script src="widgets/launcher.js"></script>
+  <script src="widgets/deck.js"></script>
+  <script src="widgets/keyboard.js"></script>
+  <script src="widgets/touchpad.js"></script>
+  <script src="widgets/coin.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

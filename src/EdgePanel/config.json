@@ -1,6 +1,7 @@
 {
-  // Default settings, copied to %LOCALAPPDATA%\EdgePanel\config.json on first save.
-  // Edit them from the tray icon > Settings.
+  // Default settings (schema v3, see docs/ARCHITECTURE.md), copied to
+  // %LOCALAPPDATA%\EdgePanel\config.json on first save. Edit them from the tray icon > Settings.
+  "version": 3,
 
   // How the Edge is found. The friendly name comes from the monitor's EDID.
   "monitor": {
@@ -15,25 +16,68 @@
   "sensorIntervalMs": 1000,
   "devTools": false,
 
-  // Left to right. "size" is the relative width of each widget.
-  "widgets": [
-    { "type": "clock", "enabled": true, "size": 1.3 },
-    { "type": "cpu", "enabled": true, "size": 0.8 },
-    { "type": "gpu", "enabled": true, "size": 0.8 },
-    { "type": "ram", "enabled": true, "size": 0.8 },
-    { "type": "media", "enabled": true, "size": 1.7 },
-    { "type": "shortcuts", "enabled": true, "size": 1.6 }
-  ],
+  // "panel" = dashboard on the Edge, "desktop" = panel hidden, the Edge is a normal monitor.
+  "displayMode": "panel",
 
-  "shortcutColumns": 3,
+  // "" disables a hotkey.
+  "hotkeys": {
+    "nextPage": "Ctrl+Alt+Right",
+    "prevPage": "Ctrl+Alt+Left",
+    "toggleMode": "Ctrl+Alt+E"
+  },
 
-  // "target" is anything Windows can open: exe path, URL or URI scheme.
-  "shortcuts": [
-    { "label": "Spotify", "icon": "music", "target": "spotify:" },
-    { "label": "Discord", "icon": "chat", "target": "discord:" },
-    { "label": "Steam", "icon": "game", "target": "steam://open/main" },
-    { "label": "Calculator", "icon": "calc", "target": "calc.exe" },
-    { "label": "Task Manager", "icon": "chart", "target": "taskmgr.exe" },
-    { "label": "Browser", "icon": "globe", "target": "https://www.google.com" }
+  "theme": {
+    "background": "#000000",
+    "backgroundImage": "",
+    "textColor": "#e8edf3",
+    "accentColor": "#2bd4e0",
+    "widgetBackground": "#11151b",
+    "widgetOpacity": 0.85,
+    "radius": 18
+  },
+  "themePerPage": false,
+
+  // Each page is a 4 x 2 grid. Sizes: S 1x1, W 2x1, M 1x2, L 2x2, XL 4x2.
+  // Empty "settings" use the defaults from wwwroot/widgets/catalog.js.
+  "pages": [
+    {
+      "id": "p1",
+      "name": "Main",
+      "widgets": [
+        { "id": "w1", "type": "clock", "col": 0, "row": 0, "size": "W", "settings": {} },
+        { "id": "w2", "type": "sensorPair", "col": 0, "row": 1, "size": "S", "settings": {} },
+        {
+          "id": "w3", "type": "sensorPair", "col": 1, "row": 1, "size": "S",
+          "settings": {
+            "left": { "sensor": "cpu.temp", "mode": "value", "name": "CPU Temp" },
+            "right": { "sensor": "gpu.temp", "mode": "value", "name": "GPU Temp" }
+          }
+        },
+        { "id": "w4", "type": "media", "col": 2, "row": 0, "size": "M", "settings": {} },
+        { "id": "w5", "type": "volume", "col": 3, "row": 0, "size": "M", "settings": {} }
+      ]
+    },
+    {
+      "id": "p2",
+      "name": "Apps",
+      "widgets": [
+        { "id": "w6", "type": "launcher", "col": 0, "row": 0, "size": "M", "settings": {} },
+        { "id": "w7", "type": "deck", "col": 1, "row": 0, "size": "L", "settings": {} },
+        { "id": "w8", "type": "sensorList", "col": 3, "row": 0, "size": "M", "settings": {} }
+      ]
+    },
+    {
+      "id": "p3",
+      "name": "Tools",
+      "widgets": [
+        { "id": "w9", "type": "calendar", "col": 0, "row": 0, "size": "S", "settings": {} },
+        { "id": "w10", "type": "chronograph", "col": 0, "row": 1, "size": "S", "settings": {} },
+        { "id": "w11", "type": "sensorChart", "col": 1, "row": 0, "size": "W", "settings": {} },
+        { "id": "w12", "type": "coin", "col": 1, "row": 1, "size": "S", "settings": {} },
+        { "id": "w13", "type": "touchpad", "col": 2, "row": 1, "size": "S", "settings": {} },
+        { "id": "w14", "type": "gauge", "col": 3, "row": 0, "size": "S", "settings": { "sensor": "gpu.hotspot", "name": "GPU Hotspot" } },
+        { "id": "w15", "type": "gauge", "col": 3, "row": 1, "size": "S", "settings": { "sensor": "ram.load", "name": "Memory" } }
+      ]
+    }
   ]
 }

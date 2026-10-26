@@ -1,38 +1,53 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Threading;
+using EdgePanel.Audio;
 using EdgePanel.Display;
 using EdgePanel.Input;
 using EdgePanel.Native;
+using EdgePanel.Shell;
 using EdgePanel.Telemetry;
 using Microsoft.Web.WebView2.Core;
 using static EdgePanel.Native.NativeMethods;
 
 namespace EdgePanel;
 
+/// <summary>
+/// The full-screen panel on the Edge: pins itself to the monitor, hosts index.html, runs
+/// telemetry (sensors, media, audio) and executes the actions the panel sends.
+/// </summary>
 public partial class MainWindow : Window
 {
-    private static readonly JsonSerializerOptions Json = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
+    /// <summary>Telemetry keeps nulls: a sensor with <c>value: null</c> means "unavailable".</summary>
+    private static readonly JsonSerializerOptions TelemetryJson = new() { PropertyNamingPolicy = JsonNamingPolicy.CamelCase };
 
     private AppConfig _config;
     private readonly MouseGuard _mouseGuard;
     private readonly MediaReader _media = new();
+    private readonly AudioService _audio = new();
+    private readonly DisplayControl _display = new();
     private readonly DispatcherTimer _watchdog;
     private readonly DispatcherTimer _repositionDebounce;
     private readonly CancellationTokenSource _cts = new();
     private readonly uint _processId = (uint)Environment.ProcessId;
 
     private IntPtr _hwnd;
+    private HotkeyService? _hotkeys;
     private MonitorInfo? _edge;
     private MonitorInfo? _mainMonitor;
-    private bool _webReady;
+    private volatile SensorReader? _sensors;
+    private volatile bool _webReady;
+    private int _currentPage;
 
     public MainWindow(AppConfig config)
     {
@@ -52,6 +67,15 @@ public partial class MainWindow : Window
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
     }
 
+    /// <summary>
+    /// Telemetry and icon messages (already serialized) that the settings window also wants for
+    /// its live preview. Raised on background threads.
+    /// </summary>
+    public event Action<string>? Mirror;
+
+    /// <summary>Raised when a hotkey or the tray switched panel/desktop mode, so the config gets saved.</summary>
+    public event Action? DisplayModeChanged;
+
     public bool MouseGuardEnabled
     {
         get => _mouseGuard.Enabled;
@@ -60,6 +84,11 @@ public partial class MainWindow : Window
 
     public bool EvictWindowsEnabled { get; set; }
 
+    public bool DesktopMode => _config.DisplayMode == DisplayModes.Desktop;
+
+    /// <summary>Sensor list for the settings editor (empty until the first reading).</summary>
+    public IReadOnlyList<SensorInfo> SensorCatalog => _sensors?.Catalog ?? Array.Empty<SensorInfo>();
+
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
@@ -67,6 +96,9 @@ public partial class MainWindow : Window
 
         ApplyWindowStyles();
         HwndSource.FromHwnd(_hwnd)?.AddHook(WndProc);
+
+        _hotkeys = new HotkeyService(_hwnd);
+        _hotkeys.Register(_config.Hotkeys);
 
         EvictWindowsEnabled = _config.EvictWindows;
         _mouseGuard.Start();
@@ -84,27 +116,48 @@ public partial class MainWindow : Window
         SetWindowLongPtr(_hwnd, GWL_EXSTYLE, new IntPtr(ex));
     }
 
-    /// <summary>Applies settings saved from the settings window without restarting.</summary>
-    public void ApplyConfig(AppConfig config)
+    /// <summary>Applies settings saved from the settings window without restarting. Returns hotkey problems.</summary>
+    public List<string> ApplyConfig(AppConfig config)
     {
         _config = config;
         _mouseGuard.Enabled = config.MouseGuard;
         EvictWindowsEnabled = config.EvictWindows;
         if (_hwnd != IntPtr.Zero) ApplyWindowStyles();
-        if (_webReady) PostLayout();
+        var errors = _hotkeys?.Register(config.Hotkeys) ?? new List<string>();
+        if (_webReady) PostConfig();
         Reposition("settings");
+        return errors;
     }
 
-    private void PostLayout() => Post("config", new
+    // ---------------------------------------------------------------- display mode
+
+    public void ToggleDisplayMode() => SetDisplayMode(DesktopMode ? DisplayModes.Panel : DisplayModes.Desktop);
+
+    /// <summary>Desktop mode hides the panel and releases the Edge (no mouse guard, no evictor).</summary>
+    public void SetDisplayMode(string mode)
     {
-        widgets = _config.Widgets.Where(w => w.Enabled).Select(w => new { w.Type, w.Size }),
-        _config.ShortcutColumns,
-        shortcuts = _config.Shortcuts.Select((s, i) => new { id = i, s.Label, s.Icon }),
-    });
+        if (_config.DisplayMode == mode) return;
+        _config.DisplayMode = mode;
+        Log.Info($"Display mode: {mode}");
+        Reposition("display mode");
+        DisplayModeChanged?.Invoke();
+    }
+
+    // ---------------------------------------------------------------- window placement
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         if (msg == WM_DISPLAYCHANGE) ScheduleReposition();
+        else if (msg == HotkeyService.WM_HOTKEY && _hotkeys?.ActionFor(wParam) is { } action)
+        {
+            handled = true;
+            switch (action)
+            {
+                case HotkeyAction.NextPage: Post(new { type = "nav", dir = 1 }); break;
+                case HotkeyAction.PrevPage: Post(new { type = "nav", dir = -1 }); break;
+                case HotkeyAction.ToggleMode: ToggleDisplayMode(); break;
+            }
+        }
         return IntPtr.Zero;
     }
 
@@ -116,17 +169,17 @@ public partial class MainWindow : Window
         _repositionDebounce.Start();
     }
 
-    /// <summary>Finds the Edge by name and pins the panel to it. Hides the panel while the Edge is gone.</summary>
+    /// <summary>Finds the Edge by name and pins the panel to it. Hides the panel while the Edge is gone or in desktop mode.</summary>
     public void Reposition(string reason)
     {
         var monitors = MonitorLocator.GetMonitors();
         var edge = MonitorLocator.FindEdge(monitors, _config.Monitor);
-        Log.Info($"Reposition ({reason}): {string.Join(" | ", monitors)} -> edge: {edge?.GdiName ?? "not found"}");
+        Log.Info($"Reposition ({reason}): {string.Join(" | ", monitors)} -> edge: {edge?.GdiName ?? "not found"}{(DesktopMode ? " (desktop mode)" : "")}");
 
         _edge = edge;
         _mainMonitor = monitors.Where(m => m != edge).OrderByDescending(m => m.IsPrimary).FirstOrDefault();
 
-        if (edge is null)
+        if (edge is null || DesktopMode)
         {
             _mouseGuard.SetZone(null, default);
             if (IsVisible) Hide();
@@ -147,7 +200,7 @@ public partial class MainWindow : Window
 
     private void PinToEdge()
     {
-        if (_edge is not { } edge || _hwnd == IntPtr.Zero) return;
+        if (_edge is not { } edge || _hwnd == IntPtr.Zero || DesktopMode) return;
         var b = edge.Bounds;
         SetWindowPos(_hwnd, HWND_TOPMOST, b.Left, b.Top, b.Width, b.Height, SWP_NOACTIVATE | SWP_SHOWWINDOW);
     }
@@ -163,7 +216,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (_edge is null) return;
+        if (_edge is null || DesktopMode) return;
 
         if (GetWindowRect(_hwnd, out var rect) && !Equals(rect, _edge.Bounds)) PinToEdge();
 
@@ -171,12 +224,19 @@ public partial class MainWindow : Window
             WindowEvictor.Run(_edge, _mainMonitor, _processId);
     }
 
+    // ---------------------------------------------------------------- web page
+
     private async Task InitWebViewAsync()
     {
         try
         {
             Web.DefaultBackgroundColor = System.Drawing.Color.Black;
-            Web.CoreWebView2InitializationCompleted += (_, _) => Web.CoreWebView2.WebMessageReceived += OnWebMessage;
+            Web.CoreWebView2InitializationCompleted += (_, _) =>
+            {
+                Web.CoreWebView2.WebMessageReceived += OnWebMessage;
+                // A reloaded page must say "ready" again before it gets messages.
+                Web.CoreWebView2.NavigationStarting += (_, _) => _webReady = false;
+            };
             await WebHost.InitAsync(Web, "index.html", _config.DevTools);
         }
         catch (Exception ex)
@@ -192,25 +252,42 @@ public partial class MainWindow : Window
             using var doc = JsonDocument.Parse(e.WebMessageAsJson);
             var root = doc.RootElement;
             var type = root.GetProperty("type").GetString();
-            var action = root.TryGetProperty("action", out var a) ? a.GetString() : null;
 
             switch (type)
             {
                 case "ready":
                     _webReady = true;
-                    PostLayout();
+                    PostConfig();
+                    PushLiveState(PostJson, includeIcons: false); // PostConfig already sends them
                     break;
-                case "media" when action is not null:
+                case "media" when Str(root, "action") is { } action:
                     _ = _media.CommandAsync(action);
                     break;
                 case "volume":
-                    var vk = action switch { "up" => VK_VOLUME_UP, "down" => VK_VOLUME_DOWN, "mute" => VK_VOLUME_MUTE, _ => (byte)0 };
-                    if (vk != 0) TapKey(vk);
+                    var volume = root.Clone();
+                    _ = Task.Run(() =>
+                    {
+                        _audio.Handle(volume);
+                        if (_audio.Read() is { } state) Broadcast("audio", state); // instant feedback
+                    });
                     break;
                 case "launch":
-                    // Only ids from config.json are launchable; the page never sends a raw path.
-                    var id = root.GetProperty("id").GetInt32();
-                    if (id >= 0 && id < _config.Shortcuts.Count) Launch(_config.Shortcuts[id]);
+                    LaunchApp(Str(root, "widgetId"), Int(root, "index"));
+                    break;
+                case "deck":
+                    RunDeckButton(Str(root, "widgetId"), Int(root, "index"));
+                    break;
+                case "key":
+                    PressKey(root);
+                    break;
+                case "text" when Str(root, "text") is { Length: > 0 } text:
+                    InputSimulator.Type(text);
+                    break;
+                case "pointer":
+                    Pointer(root);
+                    break;
+                case "page" when Int(root, "index") is { } page:
+                    _currentPage = page;
                     break;
             }
         }
@@ -220,38 +297,212 @@ public partial class MainWindow : Window
         }
     }
 
-    private static void Launch(Shortcut shortcut)
+    /// <summary>Shows a page on the Edge (settings preview, deck "page" buttons).</summary>
+    public void Goto(int index)
     {
-        try
+        _currentPage = Math.Clamp(index, 0, Math.Max(0, _config.Pages.Count - 1));
+        Post(new { type = "goto", index = _currentPage });
+    }
+
+    private void PostConfig()
+    {
+        Post(new
         {
-            Process.Start(new ProcessStartInfo(shortcut.Target)
+            type = "config",
+            data = new { pages = _config.Pages, theme = _config.Theme, themePerPage = _config.ThemePerPage, mediaBase = WebHost.MediaBase },
+        }, AppConfig.JsonOptions);
+
+        var config = _config;
+        _ = Task.Run(() => Broadcast("appIcons", AppIcons(config)));
+    }
+
+    /// <summary>
+    /// Sends the current media (with art), sensors, audio and app icons to a page that just
+    /// connected: the panel on "ready", or the settings window for its preview.
+    /// </summary>
+    public void PushLiveState(Action<string> post, bool includeIcons = true)
+    {
+        post(Serialize("media", _media.Snapshot()));
+        if (_sensors is { } sensors) post(Serialize("sensors", sensors.Last));
+        var config = _config;
+        _ = Task.Run(() =>
+        {
+            if (_audio.Read() is { } audio) post(Serialize("audio", audio));
+            if (includeIcons) post(Serialize("appIcons", AppIcons(config)));
+        });
+    }
+
+    /// <summary>Icons for launcher apps and deck "launch" buttons, keyed "widgetId:index".</summary>
+    private static Dictionary<string, string> AppIcons(AppConfig config)
+    {
+        var icons = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var widget in config.Pages.SelectMany(p => p.Widgets))
+        {
+            try
             {
-                Arguments = shortcut.Arguments ?? "",
-                UseShellExecute = true,
-            });
+                if (widget.Type == "launcher")
+                {
+                    var apps = DefaultLayout.AppsOf(widget);
+                    for (var i = 0; i < apps.Count; i++)
+                        if (AppIconService.Get(Str(apps[i]?["target"])) is { } icon) icons[$"{widget.Id}:{i}"] = icon;
+                }
+                else if (widget.Type == "deck")
+                {
+                    var buttons = DefaultLayout.ButtonsOf(widget);
+                    for (var i = 0; i < buttons.Count; i++)
+                    {
+                        var action = buttons[i]?["action"];
+                        if (Str(action?["kind"]) == "launch" && AppIconService.Get(Str(action?["target"])) is { } icon)
+                            icons[$"{widget.Id}:{i}"] = icon;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"App icons for widget {widget.Id} failed", ex);
+            }
         }
-        catch (Exception ex)
+        return icons;
+    }
+
+    // ---------------------------------------------------------------- actions
+
+    private void LaunchApp(string? widgetId, int? index)
+    {
+        // Only targets from the config are launchable; the page never sends a raw path.
+        var widget = _config.FindWidget(widgetId);
+        if (widget?.Type != "launcher" || index is not { } i) return;
+        var apps = DefaultLayout.AppsOf(widget);
+        if (i < 0 || i >= apps.Count) return;
+        Launch(Str(apps[i]?["target"]), Str(apps[i]?["args"]), Str(apps[i]?["label"]));
+    }
+
+    private void RunDeckButton(string? widgetId, int? index)
+    {
+        var widget = _config.FindWidget(widgetId);
+        if (widget?.Type != "deck" || index is not { } i) return;
+        var buttons = DefaultLayout.ButtonsOf(widget);
+        if (i < 0 || i >= buttons.Count || buttons[i]?["action"] is not JsonObject action) return;
+
+        var value = Str(action["value"]);
+        switch (Str(action["kind"]))
         {
-            Log.Error($"Launch '{shortcut.Label}' failed", ex);
+            case "launch":
+                Launch(Str(action["target"]), Str(action["args"]), Str(buttons[i]?["label"]));
+                break;
+            case "keys":
+                PressCombo(value);
+                break;
+            case "media":
+                switch (value)
+                {
+                    case "volup": TapKey(VK_VOLUME_UP); break;
+                    case "voldown": TapKey(VK_VOLUME_DOWN); break;
+                    case "mute": TapKey(VK_VOLUME_MUTE); break;
+                    case { } media: _ = _media.CommandAsync(media); break;
+                }
+                break;
+            case "url":
+                Launch(value, null, Str(buttons[i]?["label"]));
+                break;
+            case "text" when !string.IsNullOrEmpty(value):
+                InputSimulator.Type(value);
+                break;
+            case "page" when int.TryParse(value, out var page):
+                Goto(page);
+                break;
         }
     }
 
+    private static void Launch(string? target, string? args, string? label)
+    {
+        if (string.IsNullOrWhiteSpace(target)) return;
+        try
+        {
+            var info = new ProcessStartInfo(Environment.ExpandEnvironmentVariables(target.Trim()))
+            {
+                Arguments = args ?? "",
+                UseShellExecute = true,
+            };
+            // Many apps expect to start in their own folder (games, portable tools).
+            if (Path.IsPathRooted(info.FileName) && File.Exists(info.FileName))
+                info.WorkingDirectory = Path.GetDirectoryName(info.FileName) ?? "";
+            Process.Start(info);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"Launch '{label ?? target}' failed", ex);
+        }
+    }
+
+    private static void PressKey(JsonElement root)
+    {
+        if (Str(root, "keys") is { Length: > 0 } keys)
+        {
+            PressCombo(keys);
+            return;
+        }
+        if (Int(root, "vk") is not { } vk || vk <= 0 || vk > 0xFE) return;
+
+        var mods = KeyMods.None;
+        if (root.TryGetProperty("mods", out var list) && list.ValueKind == JsonValueKind.Array)
+            foreach (var m in list.EnumerateArray())
+                if (m.ValueKind == JsonValueKind.String) mods |= KeyParser.ParseMod(m.GetString()!);
+        InputSimulator.Press(new KeyCombo((ushort)vk, mods));
+    }
+
+    private static void PressCombo(string? keys)
+    {
+        // Win+L is a secure key sequence that SendInput cannot trigger.
+        if (KeyParser.TryParse(keys, out var combo) && combo is { Vk: 'L', Mods: KeyMods.Win })
+        {
+            LockWorkStation();
+            return;
+        }
+        if (!string.IsNullOrWhiteSpace(keys)) InputSimulator.Press(keys);
+    }
+
+    private void Pointer(JsonElement root)
+    {
+        // A touch on the touchpad widget parks the cursor on the Edge; move it back first.
+        _mouseGuard.ReturnCursor();
+
+        var dx = Num(root, "dx") ?? 0;
+        var dy = Num(root, "dy") ?? 0;
+        if (dx != 0 || dy != 0) InputSimulator.MoveBy((int)Math.Round(dx), (int)Math.Round(dy));
+        if (Str(root, "click") is { } click) InputSimulator.Button(click, null);
+        if (Str(root, "down") is { } down) InputSimulator.Button(down, true);
+        if (Str(root, "up") is { } up) InputSimulator.Button(up, false);
+        if (Num(root, "scroll") is { } scroll) InputSimulator.Scroll(scroll, Num(root, "scrollX") ?? 0);
+    }
+
+    // ---------------------------------------------------------------- DDC/CI
+
+    public Task<DeviceState> GetDeviceAsync() => _display.GetAsync(_edge?.Handle ?? IntPtr.Zero);
+
+    public void SetDevice(string key, double value) => _display.Set(_edge?.Handle ?? IntPtr.Zero, key, value);
+
+    public Task<DeviceState> RestoreDeviceAsync() => _display.RestoreAsync(_edge?.Handle ?? IntPtr.Zero);
+
+    // ---------------------------------------------------------------- telemetry
+
     private async Task TelemetryLoopAsync(CancellationToken token)
     {
-        SensorReader? sensors = null;
-        try { sensors = new SensorReader(); }
+        try { _sensors = new SensorReader(); }
         catch (Exception ex) { Log.Error("Sensor init failed", ex); }
 
         try
         {
             while (!token.IsCancellationRequested)
             {
-                if (_webReady && _edge is not null)
+                var panelLive = _webReady && _edge is not null && !DesktopMode;
+                if (panelLive || Mirror is not null)
                 {
                     try
                     {
-                        if (sensors is not null) Post("sensors", sensors.Read());
-                        Post("media", await _media.ReadAsync());
+                        if (_sensors is { } sensors) Broadcast("sensors", sensors.Read());
+                        Broadcast("media", await _media.ReadAsync());
+                        if (_audio.Read() is { } audio) Broadcast("audio", audio);
                     }
                     catch (Exception ex)
                     {
@@ -264,26 +515,60 @@ public partial class MainWindow : Window
         catch (OperationCanceledException) { }
         finally
         {
-            sensors?.Dispose();
+            _sensors?.Dispose();
         }
     }
 
-    private void Post(string type, object? data)
+    /// <summary>Sends a <c>{type, data}</c> message to the panel and the settings window.</summary>
+    private void Broadcast(string type, object? data)
     {
-        var json = JsonSerializer.Serialize(new { type, data }, Json);
-        Dispatcher.BeginInvoke(() =>
-        {
-            if (Web.CoreWebView2 is not null) Web.CoreWebView2.PostWebMessageAsJson(json);
-        });
+        var json = Serialize(type, data);
+        if (_webReady) PostJson(json);
+        Mirror?.Invoke(json);
     }
 
+    private static string Serialize(string type, object? data) =>
+        JsonSerializer.Serialize(new { type, data }, TelemetryJson);
+
+    private void Post(object message, JsonSerializerOptions? options = null) =>
+        PostJson(JsonSerializer.Serialize(message, options ?? TelemetryJson));
+
+    /// <summary>Thread-safe: marshals to the UI thread, where CoreWebView2 lives.</summary>
+    private void PostJson(string json) => Dispatcher.BeginInvoke(() =>
+    {
+        try { Web.CoreWebView2?.PostWebMessageAsJson(json); }
+        catch (Exception ex) { Log.Error("Post to panel failed", ex); }
+    });
+
+    // ---------------------------------------------------------------- helpers
+
+    private static string? Str(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() : null;
+
+    private static double? Num(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetDouble() : null;
+
+    private static int? Int(JsonElement root, string name) =>
+        root.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out var i) ? i
+        : root.TryGetProperty(name, out v) && v.ValueKind == JsonValueKind.String && int.TryParse(v.GetString(), out i) ? i
+        : null;
+
+    /// <summary>A JSON string, number or bool as text; null for objects/arrays/missing.</summary>
+    private static string? Str(JsonNode? node) => node is JsonValue value
+        ? value.TryGetValue<string>(out var s) ? s : value.ToJsonString().Trim('"')
+        : null;
+
     private static POINT Center(RECT r) => new() { X = r.Left + r.Width / 2, Y = r.Top + r.Height / 2 };
+
+    [DllImport("user32.dll")]
+    private static extern bool LockWorkStation();
 
     protected override void OnClosed(EventArgs e)
     {
         _cts.Cancel();
         _watchdog.Stop();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+        _hotkeys?.Dispose();
         _mouseGuard.Dispose();
         base.OnClosed(e);
     }

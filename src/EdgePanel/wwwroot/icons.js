@@ -1,8 +1,10 @@
 "use strict";
 
-// Shortcut icons (24x24 path data), shared by the panel and the settings page.
+// 24x24 icon path data (filled, even-odd rule), shared by the panel and the settings editor.
 window.EDGE_ICONS = {
+  // General / shortcuts
   app: "M4 4h7v7H4zm9 0h7v7h-7zM4 13h7v7H4zm9 0h7v7h-7z",
+  apps: "M4 4h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 10h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4zM4 16h4v4H4zm6 0h4v4h-4zm6 0h4v4h-4z",
   music: "M12 3v10.6A4 4 0 1 0 14 17V7h4V3z",
   chat: "M4 4h16v12H7l-3 3z",
   game: "M7 8h10a5 5 0 0 1 0 10c-1.6 0-2.6-1-3.4-2h-3.2C9.6 17 8.6 18 7 18A5 5 0 0 1 7 8zm0 3v2H5v2h2v2h2v-2h2v-2H9v-2zm9 1a1 1 0 1 0 0 2 1 1 0 0 0 0-2zm2 2a1 1 0 1 0 0 2 1 1 0 0 0 0-2z",
@@ -16,7 +18,58 @@ window.EDGE_ICONS = {
   camera: "M9 4h6l1.5 2H21v13H3V6h4.5zm3 4a4.5 4.5 0 1 0 0 9 4.5 4.5 0 0 0 0-9z",
   settings: "M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3h-4l-.3 2.9a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.5 7.5 0 0 0 1.7 1L11 21h4l.3-2.9a7.5 7.5 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z",
   power: "M11 3h2v9h-2zm6.1 2.9 1.4-1.4A9 9 0 1 1 5.5 4.5l1.4 1.4a7 7 0 1 0 10.2 0z",
+  desktop: "M2 4h20v13H2zm2 2v9h16V6zm7 11h2v2h-2zm-3 2h8v2H8z",
+  lock: "M7 10V7a5 5 0 0 1 10 0v3h2v12H5V10zm2 0h6V7a3 3 0 0 0-6 0zm2 4v4h2v-4z",
+  next: "M4 11h12.2l-5.6-5.6L12 4l8 8-8 8-1.4-1.4 5.6-5.6H4z",
+  prev: "M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20z",
+  chevronLeft: "M15.4 5.4 14 4l-8 8 8 8 1.4-1.4L8.8 12z",
+  chevronRight: "M8.6 5.4 10 4l8 8-8 8-1.4-1.4 6.6-6.6z",
+  plus: "M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z",
+  minus: "M5 11h14v2H5z",
+
+  // Time
+  clock: "M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20zm0 2a8 8 0 1 1 0 16 8 8 0 1 1 0-16zM11 7h2v4.6l3.2 3.2-1.4 1.4L11 12.4z",
+  calendar: "M7 2h2v2h6V2h2v2h3v17H4V4h3zM6 9v10h12V9zm2 2h3v3H8z",
+  timer: "M9 1h6v2H9zm3 3a9 9 0 1 0 0 18 9 9 0 1 0 0-18zm0 2a7 7 0 1 1 0 14 7 7 0 1 1 0-14zm-1 2h2v6h-2zm7.4-2.8 1.4-1.4 1.6 1.6-1.4 1.4z",
+  flag: "M5 3h2v18H5zm3 1h11l-2.5 4L19 12H8z",
+  reset: "M12 4a8 8 0 1 1-7.7 10h2.1A6 6 0 1 0 12 6v3L7.5 5 12 1z",
+
+  // System
+  gauge: "M12 5A10 10 0 0 0 2 15v3h4v-3a6 6 0 0 1 12 0v3h4v-3A10 10 0 0 0 12 5zm-1 9 5.3-4.7.4.4L13 16z",
+  gauge2: "M6.5 7a5 5 0 1 0 0 10 5 5 0 1 0 0-10zm0 2a3 3 0 1 1 0 6 3 3 0 1 1 0-6zm11-2a5 5 0 1 0 0 10 5 5 0 1 0 0-10zm0 2a3 3 0 1 1 0 6 3 3 0 1 1 0-6z",
+  list: "M3 5h3v3H3zm5 0h13v3H8zM3 10.5h3v3H3zm5 0h13v3H8zM3 16h3v3H3zm5 0h13v3H8z",
+
+  // Media
+  play: "M8 5v14l11-7z",
+  pause: "M6 5h4v14H6zm8 0h4v14h-4z",
+  skipNext: "M16 6h2v12h-2zM6 6v12l8.5-6z",
+  skipPrev: "M6 6h2v12H6zm12 0v12l-8.5-6z",
+  volume: "M3 9v6h4l5 5V4L7 9zm12.5 3A4.5 4.5 0 0 0 13 8v8a4.5 4.5 0 0 0 2.5-4zM13 3.2v2.1a7 7 0 0 1 0 13.4v2.1a9 9 0 0 0 0-17.6z",
+  volumeMute: "M3 9v6h4l5 5V4L7 9zm19 .4L20.6 8 18 10.6 15.4 8 14 9.4l2.6 2.6-2.6 2.6 1.4 1.4 2.6-2.6 2.6 2.6 1.4-1.4-2.6-2.6z",
+  volumeDown: "M3 9v6h4l5 5V4L7 9zm11 2h7v2h-7z",
+  volumeUp: "M3 9v6h4l5 5V4L7 9zm13 0h2v2h2v2h-2v2h-2v-2h-2v-2h2z",
+  mic: "M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM5 11h2a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.9V21h-2v-3.1A7 7 0 0 1 5 11z",
+  micMute: "M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3zM5 11h2a5 5 0 0 0 10 0h2a7 7 0 0 1-6 6.9V21h-2v-3.1A7 7 0 0 1 5 11zM3.4 4.8l1.4-1.4 15.8 15.8-1.4 1.4z",
+  image: "M3 4h18v16H3zm2 2v10.6l4-4.6 3 3.4 3.5-4.4 3.5 4.5V6zm4.5 1.5a1.75 1.75 0 1 0 0 3.5 1.75 1.75 0 1 0 0-3.5z",
+  slides: "M2 6h15v12H2zm2 2v8h11V8zm14.5-1h2v10h-2zm3 1.5H23v7h-1.5z",
+  youtube: "M3.5 6.5C5 5.6 8.5 5.5 12 5.5s7 .1 8.5 1c1 .6 1.5 2.5 1.5 5.5s-.5 4.9-1.5 5.5c-1.5.9-5 1-8.5 1s-7-.1-8.5-1C2.5 16.9 2 15 2 12s.5-4.9 1.5-5.5zM10 9v6l5-3z",
+
+  // Web
+  twitch: "M4 3 3 6v13h4v2.5h2.5L12 19h3.5L21 13.5V3zm2 2h13v7.8L16.2 15.5H12l-2.5 2.5v-2.5H6zm5 3v5h2V8zm4.5 0v5h2V8z",
+  car: "M5 11l1.6-4.4A2 2 0 0 1 8.5 5h7a2 2 0 0 1 1.9 1.6L19 11a2 2 0 0 1 2 2v5h-2v2h-3v-2H8v2H5v-2H3v-5a2 2 0 0 1 2-2zm2.2 0h9.6l-1.1-3.5c-.1-.3-.3-.5-.6-.5H8.9c-.3 0-.5.2-.6.5zM6.5 13a1.5 1.5 0 1 0 0 3 1.5 1.5 0 1 0 0-3zm11 0a1.5 1.5 0 1 0 0 3 1.5 1.5 0 1 0 0-3z",
+  weather: "M6 20a4 4 0 0 1-.3-8 5.5 5.5 0 0 1 10.5 1.4A3.3 3.3 0 0 1 16 20zM18 3.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 1 0 0-5zM17.25 0.5h1.5v2h-1.5zM21 5.25h2.5v1.5H21zM17.25 9.5h1.5v1.8h-1.5zM13 5.25h2v1.5h-2z",
+  aqi: "M20 4C10 4 5 8 5 15c0 1.2.2 2.3.6 3.3L4 20l1.4 1.4 1.6-1.6c1 .5 2.2.7 3.5.7C17 20.5 20 15 20 4zM9 17c1.5-4 4-6.5 8-8.5-3 2.5-5 5-6.5 8.5z",
+  wind: "M3 8h10.5a1.5 1.5 0 1 0-1.5-1.5h-2A3.5 3.5 0 1 1 13.5 10H3zm0 4h14.5a3.5 3.5 0 1 1-3.5 3.5h2a1.5 1.5 0 1 0 1.5-1.5H3zm0 4h6v2H3z",
+  sunrise: "M3 18h18v2H3zm4-2a5 5 0 0 1 10 0zm5-14 3.5 3.5H13V9h-2V5.5H8.5z",
+  sunset: "M3 18h18v2H3zm4-2a5 5 0 0 1 10 0zm4-14h2v3.5h2.5L12 9 8.5 5.5H11z",
+  drop: "M12 2.5S5 10 5 14.5a7 7 0 0 0 14 0C19 10 12 2.5 12 2.5z",
+
+  // Control
+  deck: "M3 5h5v6H3zm6.5 0h5v6h-5zM16 5h5v6h-5zM3 13h5v6H3zm6.5 0h5v6h-5zM16 13h5v6h-5z",
+  keyboard: "M2 6h20v12H2zm2 2v8h16V8zm1 1h2v2H5zm3 0h2v2H8zm3 0h2v2h-2zm3 0h2v2h-2zm3 0h2v2h-2zM5 12h2v2H5zm3 0h8v2H8zm9 0h2v2h-2z",
+  touchpad: "M3 4h18v16H3zm2 2v8h14V6zm0 10v2h6.5v-2zm8.5 0v2H19v-2z",
+  coin: "M12 2a10 10 0 1 0 0 20 10 10 0 1 0 0-20zm0 2a8 8 0 1 1 0 16 8 8 0 1 1 0-16zm-1 3v1.1A2.5 2.5 0 0 0 9 10.5c0 1.6 1.3 2.1 2.6 2.5 1 .3 1.4.5 1.4 1s-.5 1-1.2 1c-.8 0-1.3-.4-1.4-1H8.5a3 3 0 0 0 2.5 2.9V18h2v-1.1a2.6 2.6 0 0 0 2-2.5c0-1.7-1.3-2.2-2.6-2.6-1-.3-1.4-.5-1.4-1s.4-.8 1-.8.9.3 1 .8h1.9A2.7 2.7 0 0 0 13 8.1V7z",
 };
 
 window.edgeIconSvg = (name) =>
-  `<svg viewBox="0 0 24 24"><path d="${window.EDGE_ICONS[name] ?? window.EDGE_ICONS.app}"/></svg>`;
+  `<svg viewBox="0 0 24 24" aria-hidden="true"><path fill-rule="evenodd" d="${window.EDGE_ICONS[name] ?? window.EDGE_ICONS.app}"/></svg>`;

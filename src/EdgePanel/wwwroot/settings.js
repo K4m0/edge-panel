@@ -1,287 +1,307 @@
 "use strict";
 
-const host = window.chrome?.webview;
-const send = (msg) => host?.postMessage(msg);
-const $ = (id) => document.getElementById(id);
+// Settings editor entry point: host messages, live preview, auto-save, undo, navigation.
+// Loaded after settings-core.js, settings-fields.js, settings-widgets.js and settings-views.js.
 
-const WIDGET_INFO = {
-  clock: ["Clock", "Time and date"],
-  cpu: ["CPU", "Load and temperature"],
-  gpu: ["GPU", "Load and temperature"],
-  ram: ["RAM", "Memory in use"],
-  media: ["Media", "Now playing, playback and volume"],
-  shortcuts: ["Shortcuts", "Launcher buttons"],
-};
+(() => {
+  const { h } = EP;
 
-const SVG = {
-  grip: '<svg viewBox="0 0 24 24"><path d="M8 5h3v3H8zm5 0h3v3h-3zM8 10.5h3v3H8zm5 0h3v3h-3zM8 16h3v3H8zm5 0h3v3h-3z"/></svg>',
-  up: '<svg viewBox="0 0 24 24"><path d="m12 7 7 7-1.4 1.4-5.6-5.6-5.6 5.6L5 14z"/></svg>',
-  down: '<svg viewBox="0 0 24 24"><path d="m12 17-7-7 1.4-1.4 5.6 5.6 5.6-5.6L19 10z"/></svg>',
-  trash: '<svg viewBox="0 0 24 24"><path d="M9 3h6l1 2h4v2H4V5h4zm-3 6h12l-1 12H7z"/></svg>',
-};
+  /* =================== Config normalization =================== */
 
-let config = null;
-let startWithWindows = false;
-let dirty = false;
-
-/* Tabs */
-document.querySelectorAll("[role=tab]").forEach((tab) =>
-  tab.addEventListener("click", () => {
-    document.querySelectorAll("[role=tab]").forEach((t) => t.setAttribute("aria-selected", String(t === tab)));
-    document.querySelectorAll(".tab").forEach((s) => (s.hidden = s.id !== `tab-${tab.dataset.tab}`));
-  }));
-
-function markDirty() {
-  dirty = true;
-  setStatus("Unsaved changes", false, true);
-}
-
-function setStatus(text, isError = false, quiet = false) {
-  const el = $("status");
-  el.textContent = text;
-  el.classList.toggle("error", isError);
-  el.style.color = quiet ? "var(--muted)" : "";
-}
-
-function move(list, from, to) {
-  if (to < 0 || to >= list.length || from === to) return;
-  const [item] = list.splice(from, 1);
-  list.splice(to, 0, item);
-}
-
-/* Drag to reorder (mouse); arrow buttons cover touch and keyboard. */
-function makeDraggable(li, index, list, render) {
-  li.draggable = true;
-  li.addEventListener("dragstart", (e) => {
-    li.classList.add("dragging");
-    e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", String(index));
-  });
-  li.addEventListener("dragend", () => li.classList.remove("dragging"));
-  li.addEventListener("dragover", (e) => { e.preventDefault(); li.classList.add("drop-target"); });
-  li.addEventListener("dragleave", () => li.classList.remove("drop-target"));
-  li.addEventListener("drop", (e) => {
-    e.preventDefault();
-    move(list, Number(e.dataTransfer.getData("text/plain")), index);
-    markDirty();
-    render();
-  });
-  // Inputs inside a draggable row must stay usable.
-  li.querySelectorAll("input, select").forEach((el) => {
-    el.addEventListener("mousedown", () => (li.draggable = false));
-    el.addEventListener("mouseup", () => (li.draggable = true));
-    el.addEventListener("blur", () => (li.draggable = true));
-  });
-}
-
-function arrowButtons(list, index, render) {
-  const box = document.createElement("div");
-  box.className = "arrows";
-  for (const [dir, label, delta] of [["up", "Move up", -1], ["down", "Move down", 1]]) {
-    const b = document.createElement("button");
-    b.className = "icon";
-    b.innerHTML = SVG[dir];
-    b.title = label;
-    b.setAttribute("aria-label", label);
-    b.disabled = index + delta < 0 || index + delta >= list.length;
-    b.addEventListener("click", () => { move(list, index, index + delta); markDirty(); render(); });
-    box.appendChild(b);
-  }
-  return box;
-}
-
-/* Layout tab */
-function renderPreview() {
-  const box = $("preview");
-  const enabled = config.widgets.filter((w) => w.enabled);
-  box.style.gridTemplateColumns = enabled.map((w) => `${w.size}fr`).join(" ") || "1fr";
-  box.innerHTML = "";
-  if (enabled.length === 0) {
-    box.innerHTML = '<div class="empty">No widgets enabled</div>';
-    return;
-  }
-  for (const w of enabled) {
-    const cell = document.createElement("div");
-    cell.textContent = WIDGET_INFO[w.type]?.[0] ?? w.type;
-    box.appendChild(cell);
-  }
-}
-
-function renderWidgets() {
-  const list = $("widget-list");
-  list.innerHTML = "";
-  config.widgets.forEach((w, i) => {
-    const [title, desc] = WIDGET_INFO[w.type] ?? [w.type, ""];
-    const li = document.createElement("li");
-    li.className = `item widget-item${w.enabled ? "" : " off"}`;
-    li.innerHTML = `
-      <span class="handle" title="Drag to reorder">${SVG.grip}</span>
-      <span class="name">${title}<small>${desc}</small></span>
-      <label class="size">Size <input type="range" min="0.4" max="3" step="0.1"><output></output></label>
-      <span class="arrows-slot"></span>
-      <input type="checkbox" class="switch" aria-label="Show ${title}">`;
-
-    const range = li.querySelector("input[type=range]");
-    const out = li.querySelector("output");
-    range.value = w.size;
-    out.textContent = Number(w.size).toFixed(1);
-    range.addEventListener("input", () => {
-      w.size = Number(range.value);
-      out.textContent = w.size.toFixed(1);
-      markDirty();
-      renderPreview();
-    });
-
-    const toggle = li.querySelector(".switch");
-    toggle.checked = w.enabled;
-    toggle.addEventListener("change", () => {
-      w.enabled = toggle.checked;
-      li.classList.toggle("off", !w.enabled);
-      markDirty();
-      renderPreview();
-    });
-
-    li.querySelector(".arrows-slot").replaceWith(arrowButtons(config.widgets, i, renderLayout));
-    makeDraggable(li, i, config.widgets, renderLayout);
-    list.appendChild(li);
-  });
-}
-
-function renderLayout() {
-  renderPreview();
-  renderWidgets();
-}
-
-/* Shortcuts tab */
-function renderShortcuts() {
-  const list = $("shortcut-list");
-  list.innerHTML = "";
-  config.shortcuts.forEach((s, i) => {
-    const li = document.createElement("li");
-    li.className = "item shortcut-item";
-    li.innerHTML = `
-      <span class="icon-pick"><span class="icon-preview"></span><select aria-label="Icon"></select></span>
-      <input type="text" class="label" placeholder="Label" aria-label="Label" spellcheck="false">
-      <span class="target">
-        <input type="text" class="target-input" placeholder="Program, URL or app link" aria-label="Target" spellcheck="false">
-        <button class="ghost browse">Browse…</button>
-      </span>
-      <span class="actions"></span>`;
-
-    const select = li.querySelector("select");
-    const preview = li.querySelector(".icon-preview");
-    for (const name of Object.keys(window.EDGE_ICONS)) {
-      const opt = document.createElement("option");
-      opt.value = opt.textContent = name;
-      select.appendChild(opt);
+  const normalize = (raw) => {
+    const c = structuredClone(raw ?? {});
+    c.version = 3;
+    c.monitor = { nameContains: "XENEON EDGE", fallbackWidth: 2560, fallbackHeight: 720, ...c.monitor };
+    c.mouseGuard ??= true;
+    c.evictWindows ??= true;
+    c.noActivate ??= true;
+    c.sensorIntervalMs ??= 1000;
+    c.devTools ??= false;
+    c.displayMode = c.displayMode === "desktop" ? "desktop" : "panel";
+    c.hotkeys = { nextPage: "", prevPage: "", toggleMode: "", ...c.hotkeys };
+    c.theme = { ...EP.DEFAULT_THEME, ...c.theme };
+    c.themePerPage = !!c.themePerPage;
+    if (!Array.isArray(c.pages) || !c.pages.length) c.pages = [{ id: "p1", name: "Main", theme: null, widgets: [] }];
+    const taken = new Set();
+    for (const p of c.pages) {
+      if (!p.id || taken.has(p.id)) p.id = EP.newId("p", taken);
+      taken.add(p.id);
+      p.name ??= "";
+      p.theme ??= null;
+      p.widgets = Array.isArray(p.widgets) ? p.widgets : [];
     }
-    select.value = window.EDGE_ICONS[s.icon] ? s.icon : "app";
-    preview.innerHTML = window.edgeIconSvg(select.value);
-    select.addEventListener("change", () => {
-      s.icon = select.value;
-      preview.innerHTML = window.edgeIconSvg(s.icon);
-      markDirty();
+    for (const p of c.pages) {
+      const placed = { widgets: [] };
+      for (const w of p.widgets) {
+        if (!w.id || taken.has(w.id)) w.id = EP.newId("w", taken);
+        taken.add(w.id);
+        w.settings ??= {};
+        w.style = { ...EP.DEFAULT_STYLE, ...w.style };
+        w.size = EP.SIZES[w.size] ? w.size : (EP.cat(w.type)?.defaultSize ?? "S");
+        w.col = Number(w.col) || 0;
+        w.row = Number(w.row) || 0;
+        // Widgets that overlap or overflow get the first free slot (the panel would skip them).
+        if (!EP.fits(placed, w.col, w.row, w.size)) {
+          const slot = EP.findSlot(placed, w.size);
+          if (slot) Object.assign(w, slot);
+        }
+        placed.widgets.push(w);
+      }
+    }
+    return c;
+  };
+
+  /* =================== Preview iframe =================== */
+
+  let previewReady = false;
+  const frame = () => EP.$("preview");
+  EP.toPreview = (msg) => {
+    if (!previewReady) return;
+    try { frame().contentWindow?.postMessage(msg, location.origin === "null" ? "*" : location.origin); } catch { /* preview not ready */ }
+  };
+  const previewConfig = () => ({
+    type: "config",
+    data: { pages: EP.config.pages, theme: EP.config.theme, themePerPage: EP.config.themePerPage, mediaBase: EP.mediaBase },
+  });
+  EP.pushPreview = () => { if (EP.config) EP.toPreview(previewConfig()); };
+  const replayPreview = () => {
+    if (!EP.config) return;
+    EP.pushPreview();
+    const L = EP.live;
+    if (L.appIcons) EP.toPreview({ type: "appIcons", data: L.appIcons });
+    if (L.media) EP.toPreview({ type: "media", data: L.media });
+    if (L.audio) EP.toPreview({ type: "audio", data: L.audio });
+    if (L.sensors) EP.toPreview({ type: "sensors", data: L.sensors });
+    EP.toPreview({ type: "goto", index: EP.pageIndex });
+  };
+
+  /* =================== Edits, undo, auto-save =================== */
+
+  const undoStack = [], redoStack = [];
+  let lastCoalesce = null, lastEditAt = 0;
+  const snapshot = () => JSON.stringify({ config: EP.config, startWithWindows: EP.startWithWindows, pageIndex: EP.pageIndex, selectedId: EP.selectedId });
+
+  /**
+   * Every change goes through here: records undo, pushes the preview, schedules the save.
+   * opts.coalesce: edits with the same key within 1.5 s share one undo step (typing, dragging sliders).
+   * opts.render: "light" (overlay + page bar), "full", or "none" (caller renders).
+   */
+  EP.edit = (fn, { coalesce = null, render = "light" } = {}) => {
+    const now = Date.now();
+    if (!(coalesce && coalesce === lastCoalesce && now - lastEditAt < 1500)) {
+      undoStack.push(snapshot());
+      if (undoStack.length > 30) undoStack.shift();
+      redoStack.length = 0;
+    }
+    lastCoalesce = coalesce;
+    lastEditAt = now;
+    fn();
+    EP.pushPreview();
+    scheduleSave();
+    updateUndoButtons();
+    if (render === "full") EP.render();
+    else if (render === "light") EP.renderLight();
+  };
+
+  const restore = (from, to) => {
+    if (!from.length) return;
+    to.push(snapshot());
+    const s = JSON.parse(from.pop());
+    EP.config = s.config;
+    EP.startWithWindows = s.startWithWindows;
+    EP.pageIndex = EP.clamp(s.pageIndex ?? 0, 0, EP.config.pages.length - 1);
+    EP.selectedId = s.selectedId ?? null;
+    lastCoalesce = null;
+    EP.closePopover();
+    EP.pushPreview();
+    EP.toPreview({ type: "goto", index: EP.pageIndex });
+    EP.send({ type: "previewPage", index: EP.pageIndex });
+    scheduleSave();
+    EP.render();
+    updateUndoButtons();
+  };
+  EP.undo = () => { restore(undoStack, redoStack); };
+  EP.redo = () => { restore(redoStack, undoStack); };
+  const updateUndoButtons = () => {
+    EP.$("undo").disabled = !undoStack.length;
+    EP.$("redo").disabled = !redoStack.length;
+  };
+
+  let saveTimer = 0;
+  const scheduleSave = () => {
+    clearTimeout(saveTimer);
+    setSaveStatus("pending");
+    saveTimer = setTimeout(saveNow, 400);
+  };
+  const saveNow = () => {
+    clearTimeout(saveTimer);
+    saveTimer = 0;
+    EP.send({ type: "save", config: EP.config, startWithWindows: EP.startWithWindows });
+    setSaveStatus(EP.host ? "saving" : "saved");
+  };
+  const setSaveStatus = (state, text) => {
+    const el = EP.$("save-status");
+    el.className = `save-status ${state}`;
+    el.innerHTML = {
+      pending: `<span class="spin"></span>Saving…`,
+      saving: `<span class="spin"></span>Saving…`,
+      saved: `${EP.ui("check")}All changes saved`,
+      error: `${EP.ui("info")}${text ?? "Couldn't save"}`,
+      idle: "",
+    }[state] ?? "";
+  };
+  // Flush a pending save when the window is closed or hidden.
+  window.addEventListener("pagehide", () => { if (saveTimer) saveNow(); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden && saveTimer) saveNow(); });
+
+  /* =================== Rendering / navigation =================== */
+
+  const VIEWS = {
+    widgets: ["Widgets", "Drag widgets onto the screen, then select one to change its settings."],
+    pages: ["Pages Personalization", "Background, colors and transparency for your pages."],
+    screen: ["Screen Setup", "Display mode, hotkeys and how the Edge behaves with Windows."],
+    device: ["Device Settings", "Brightness, contrast and color of the XENEON EDGE."],
+    app: ["App Settings", "Startup and app information."],
+  };
+
+  EP.showView = (view) => {
+    if (!VIEWS[view]) view = "widgets";
+    EP.view = view;
+    EP.closePopover();
+    EP.disarm?.();
+    document.querySelectorAll(".nav-item").forEach((b) => {
+      const on = b.dataset.view === view;
+      b.classList.toggle("on", on);
+      if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+    });
+    document.querySelectorAll(".view").forEach((v) => (v.hidden = v.id !== `view-${view}`));
+    EP.$("main").dataset.view = view;
+    EP.$("stage").hidden = !(view === "widgets" || view === "pages");
+    EP.$("view-title").textContent = VIEWS[view][0];
+    EP.$("view-sub").textContent = VIEWS[view][1];
+    if (view === "device") { EP.device = null; EP.send({ type: "getDevice" }); }
+    try { localStorage.setItem("edge.settings.view", view); } catch { /* storage unavailable */ }
+    EP.render();
+  };
+
+  EP.renderLight = () => {
+    if (!EP.config) return;
+    EP.renderOverlay();
+    EP.renderPagebar();
+  };
+
+  EP.render = () => {
+    if (!EP.config) return;
+    EP.layoutStage();
+    EP.renderLight();
+    if (EP.view === "widgets") EP.widgetsView.render();
+    else EP.otherViews[EP.view]?.();
+  };
+
+  /* =================== Host messages =================== */
+
+  const receive = (msg) => {
+    if (!msg || typeof msg !== "object") return;
+    switch (msg.type) {
+      case "state": {
+        EP.config = normalize(msg.config);
+        EP.startWithWindows = !!msg.startWithWindows;
+        EP.configPath = msg.configPath ?? "";
+        EP.version = msg.version ?? "";
+        EP.sensorCatalog = Array.isArray(msg.sensorCatalog) ? msg.sensorCatalog : [];
+        if (msg.mediaBase) EP.mediaBase = msg.mediaBase.endsWith("/") ? msg.mediaBase : msg.mediaBase + "/";
+        EP.pageIndex = EP.clamp(EP.pageIndex, 0, EP.config.pages.length - 1);
+        if (!EP.page().widgets.some((w) => w.id === EP.selectedId)) EP.selectedId = null;
+        undoStack.length = redoStack.length = 0;
+        updateUndoButtons();
+        EP.$("app-version").textContent = EP.version ? `v${EP.version.replace(/^v/i, "")}` : "";
+        document.body.classList.remove("loading");
+        setSaveStatus("idle");
+        EP.render();
+        EP.pushPreview();
+        EP.toPreview({ type: "goto", index: EP.pageIndex });
+        EP.send({ type: "previewPage", index: EP.pageIndex });
+        break;
+      }
+      case "sensors":
+        EP.live.sensors = msg.data ?? {};
+        EP.toPreview({ type: "sensors", data: msg.data });
+        EP.updateLiveValues();
+        break;
+      case "media": {
+        const d = { ...(msg.data ?? {}) };
+        if (d.art === undefined && EP.live.media) d.art = EP.live.media.art;
+        EP.live.media = d;
+        EP.toPreview({ type: "media", data: msg.data });
+        break;
+      }
+      case "audio":
+        EP.live.audio = msg.data;
+        EP.toPreview({ type: "audio", data: msg.data });
+        break;
+      case "appIcons":
+        EP.live.appIcons = msg.data ?? {};
+        EP.toPreview({ type: "appIcons", data: msg.data });
+        document.querySelectorAll("[data-appicon]").forEach(EP.paintAppIcon);
+        break;
+      case "saved":
+        if (!saveTimer) setSaveStatus("saved");
+        break;
+      case "picked":
+        EP.resolvePick(msg);
+        break;
+      case "device":
+        EP.device = msg.data ?? { supported: false };
+        if (EP.view === "device") EP.otherViews.device();
+        break;
+      case "error":
+        setSaveStatus("error", msg.message);
+        EP.toast(msg.message ?? "Something went wrong.", "error");
+        break;
+    }
+  };
+  window.__edgeReceive = receive;
+  EP.host?.addEventListener("message", (e) => receive(e.data));
+
+  /* =================== Startup =================== */
+
+  const start = () => {
+    document.querySelectorAll(".nav-item").forEach((b) => {
+      b.title = b.textContent.trim();
+      b.addEventListener("click", () => EP.showView(b.dataset.view));
+    });
+    EP.$("nav").addEventListener("keydown", (e) => {
+      const items = [...document.querySelectorAll(".nav-item")];
+      const i = items.indexOf(document.activeElement);
+      const d = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+      if (i >= 0 && d) { e.preventDefault(); items[(i + d + items.length) % items.length].focus(); }
+    });
+    EP.$("undo").addEventListener("click", EP.undo);
+    EP.$("redo").addEventListener("click", EP.redo);
+
+    const iframe = frame();
+    iframe.addEventListener("load", () => { previewReady = true; replayPreview(); });
+    // The preview may already be loaded when this runs.
+    try { if (iframe.contentDocument?.readyState === "complete" && iframe.contentWindow.location.href !== "about:blank") { previewReady = true; } } catch { /* cross-origin */ }
+
+    EP.widgetsView.mount();
+    new ResizeObserver(() => EP.layoutStage()).observe(EP.$("main"));
+
+    document.addEventListener("keydown", (e) => {
+      const t = e.target;
+      const typing = t instanceof HTMLElement && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) && !(t.type === "checkbox" || t.type === "range");
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && !e.altKey && e.key.toLowerCase() === "z" && !typing) { e.preventDefault(); e.shiftKey ? EP.redo() : EP.undo(); }
+      else if (mod && !e.altKey && e.key.toLowerCase() === "y" && !typing) { e.preventDefault(); EP.redo(); }
+      else if (e.key === "Escape" && EP.disarm?.()) e.preventDefault();
     });
 
-    const label = li.querySelector(".label");
-    label.value = s.label ?? "";
-    label.addEventListener("input", () => { s.label = label.value; markDirty(); });
+    let view = "widgets";
+    try { view = localStorage.getItem("edge.settings.view") || view; } catch { /* storage unavailable */ }
+    if (view === "device") view = "widgets";
+    EP.showView(view);
+    EP.send({ type: "ready" });
+  };
 
-    const target = li.querySelector(".target-input");
-    target.value = s.target ?? "";
-    target.dataset.index = i;
-    target.addEventListener("input", () => { s.target = target.value; markDirty(); });
-
-    li.querySelector(".browse").addEventListener("click", () => send({ type: "browse", index: i }));
-
-    const actions = li.querySelector(".actions");
-    actions.appendChild(arrowButtons(config.shortcuts, i, renderShortcuts));
-    const del = document.createElement("button");
-    del.className = "icon danger";
-    del.innerHTML = SVG.trash;
-    del.title = "Remove";
-    del.setAttribute("aria-label", "Remove shortcut");
-    del.addEventListener("click", () => { config.shortcuts.splice(i, 1); markDirty(); renderShortcuts(); });
-    actions.appendChild(del);
-
-    makeDraggable(li, i, config.shortcuts, renderShortcuts);
-    list.appendChild(li);
-  });
-}
-
-$("add-shortcut").addEventListener("click", () => {
-  config.shortcuts.push({ label: "New", icon: "app", target: "" });
-  markDirty();
-  renderShortcuts();
-  const inputs = document.querySelectorAll("#shortcut-list .target-input");
-  inputs[inputs.length - 1]?.focus();
-});
-
-$("shortcut-columns").addEventListener("input", (e) => {
-  config.shortcutColumns = Number(e.target.value) || 3;
-  markDirty();
-});
-
-/* General tab */
-const SWITCHES = ["mouseGuard", "evictWindows", "noActivate", "devTools"];
-
-function renderGeneral() {
-  for (const key of SWITCHES) $(key).checked = !!config[key];
-  $("startWithWindows").checked = startWithWindows;
-  $("monitorName").value = config.monitor?.nameContains ?? "";
-  $("sensorIntervalMs").value = config.sensorIntervalMs;
-  $("shortcut-columns").value = config.shortcutColumns;
-}
-
-for (const key of SWITCHES) $(key).addEventListener("change", (e) => { config[key] = e.target.checked; markDirty(); });
-$("startWithWindows").addEventListener("change", (e) => { startWithWindows = e.target.checked; markDirty(); });
-$("monitorName").addEventListener("input", (e) => { config.monitor.nameContains = e.target.value; markDirty(); });
-$("sensorIntervalMs").addEventListener("input", (e) => { config.sensorIntervalMs = Number(e.target.value) || 1000; markDirty(); });
-$("open-folder").addEventListener("click", () => send({ type: "openConfigFolder" }));
-
-/* Footer */
-$("save").addEventListener("click", () => {
-  const empty = config.shortcuts.filter((s) => !s.target?.trim()).length;
-  send({ type: "save", config, startWithWindows });
-  setStatus(empty ? `Saving… (${empty} shortcut(s) without a target were dropped)` : "Saving…", false, true);
-});
-
-$("close").addEventListener("click", () => {
-  if (dirty && !confirm("Discard unsaved changes?")) return;
-  send({ type: "close" });
-});
-
-/* Host bridge */
-host?.addEventListener("message", (e) => {
-  const msg = e.data ?? {};
-  switch (msg.type) {
-    case "state":
-      config = msg.config;
-      startWithWindows = msg.startWithWindows;
-      $("version").textContent = `Version ${msg.version ?? ""}`;
-      $("config-path").textContent = msg.configPath;
-      renderLayout();
-      renderShortcuts();
-      renderGeneral();
-      dirty = false;
-      break;
-    case "saved":
-      setStatus("Saved and applied");
-      setTimeout(() => { if (!dirty) setStatus(""); }, 2500);
-      break;
-    case "picked": {
-      const s = config.shortcuts[msg.index];
-      if (!s) break;
-      s.target = msg.path;
-      if (!s.label || s.label === "New") s.label = msg.path.split(/[\\/]/).pop().replace(/\.(exe|lnk|bat|cmd)$/i, "");
-      markDirty();
-      renderShortcuts();
-      break;
-    }
-    case "error":
-      setStatus(msg.message, true);
-      break;
-  }
-});
-
-send({ type: "ready" });
+  start();
+})();

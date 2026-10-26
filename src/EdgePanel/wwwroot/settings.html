@@ -6,89 +6,81 @@
   <title>Edge Panel Settings</title>
   <link rel="stylesheet" href="settings.css">
 </head>
-<body>
-  <header>
-    <div>
-      <h1>Edge Panel</h1>
-      <p class="muted" id="version">&nbsp;</p>
+<body class="loading">
+  <aside class="sidebar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"></span>
+      <div>
+        <strong>Edge Panel</strong>
+        <small>XENEON EDGE <span id="app-version"></span></small>
+      </div>
     </div>
-    <nav role="tablist">
-      <button role="tab" data-tab="layout" aria-selected="true">Layout</button>
-      <button role="tab" data-tab="shortcuts">Shortcuts</button>
-      <button role="tab" data-tab="general">General</button>
+    <nav id="nav" aria-label="Settings sections">
+      <button type="button" class="nav-item" data-view="widgets"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3h8v8H3zm2 2v4h4V5zm8-2h8v8h-8zm2 2v4h4V5zM3 13h8v8H3zm2 2v4h4v-4zm8-2h8v8h-8zm2 2v4h4v-4z"/></svg><span>Widgets</span></button>
+      <button type="button" class="nav-item" data-view="pages"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 0 0 0 18c1.1 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-1 .8-1.7 1.7-1.7H16a5 5 0 0 0 5-5c0-4-4-7.2-9-7.2zM6.5 12a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3-4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm3 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg><span>Pages Personalization</span></button>
+      <button type="button" class="nav-item" data-view="screen"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 5h20v12H13v2h3v2H8v-2h3v-2H2zm2 2v8h16V7z"/></svg><span>Screen Setup</span></button>
+      <button type="button" class="nav-item" data-view="device"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M11 1h2v3h-2zm0 19h2v3h-2zM1 11h3v2H1zm19 0h3v2h-3zM4.2 5.6l1.4-1.4 2.1 2.1-1.4 1.4zm12.1 12.1 1.4-1.4 2.1 2.1-1.4 1.4zM4.2 18.4l2.1-2.1 1.4 1.4-2.1 2.1zM16.3 6.3l2.1-2.1 1.4 1.4-2.1 2.1zM12 6a6 6 0 1 1 0 12 6 6 0 0 1 0-12z"/></svg><span>Device Settings</span></button>
+      <button type="button" class="nav-item" data-view="app"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 13a7.5 7.5 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3h-4l-.3 2.9a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.5 7.5 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.5 7.5 0 0 0 1.7 1L11 21h4l.3-2.9a7.5 7.5 0 0 0 1.7-1l2.5 1 2-3.5zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg><span>App Settings</span></button>
     </nav>
-  </header>
+  </aside>
 
-  <main>
-    <!-- Layout -->
-    <section id="tab-layout" class="tab">
-      <h2>Preview</h2>
-      <div id="preview" class="preview"></div>
-      <h2>Widgets</h2>
-      <p class="muted">Drag rows (or use the arrows) to reorder. Size is the relative width on the panel.</p>
-      <ul id="widget-list" class="list"></ul>
-    </section>
-
-    <!-- Shortcuts -->
-    <section id="tab-shortcuts" class="tab" hidden>
-      <div class="row-between">
-        <h2>Launcher buttons</h2>
-        <label class="inline">Columns
-          <input id="shortcut-columns" type="number" min="1" max="6" step="1">
-        </label>
+  <main id="main" data-view="widgets">
+    <header id="view-header" class="view-header">
+      <div>
+        <h1 id="view-title">Widgets</h1>
+        <p id="view-sub" class="muted"></p>
       </div>
-      <p class="muted">Target can be a program, a file, a URL or an app link such as <code>spotify:</code> or <code>steam://open/main</code>.</p>
-      <ul id="shortcut-list" class="list"></ul>
-      <button id="add-shortcut" class="ghost">+ Add shortcut</button>
-    </section>
-
-    <!-- General -->
-    <section id="tab-general" class="tab" hidden>
-      <h2>Startup</h2>
-      <label class="switch-row">
-        <span><strong>Start with Windows</strong><small>Launch Edge Panel when you sign in.</small></span>
-        <input type="checkbox" id="startWithWindows" class="switch">
-      </label>
-
-      <h2>Behavior</h2>
-      <label class="switch-row">
-        <span><strong>Block mouse on the Edge</strong><small>The mouse can't enter the Edge. Touch still works.</small></span>
-        <input type="checkbox" id="mouseGuard" class="switch">
-      </label>
-      <label class="switch-row">
-        <span><strong>Keep other windows off the Edge</strong><small>Windows that land on the Edge move back to the main display.</small></span>
-        <input type="checkbox" id="evictWindows" class="switch">
-      </label>
-      <label class="switch-row">
-        <span><strong>Don't take focus when touched</strong><small>Your game or app stays in the foreground.</small></span>
-        <input type="checkbox" id="noActivate" class="switch">
-      </label>
-
-      <h2>Advanced</h2>
-      <div class="fields">
-        <label>Monitor name contains
-          <input type="text" id="monitorName" spellcheck="false">
-        </label>
-        <label>Sensor refresh (ms)
-          <input type="number" id="sensorIntervalMs" min="250" max="10000" step="250">
-        </label>
-        <label class="switch-row compact">
-          <span><strong>Developer tools</strong><small>F12 on the panel. Applies after restart.</small></span>
-          <input type="checkbox" id="devTools" class="switch">
-        </label>
+      <div class="header-tools">
+        <span id="save-status" class="save-status" role="status" aria-live="polite"></span>
+        <button type="button" id="undo" class="icon-btn" title="Undo (Ctrl+Z)" aria-label="Undo" disabled><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M7.8 8H15a6 6 0 0 1 0 12H8v-2h7a4 4 0 0 0 0-8H7.8l3 3-1.4 1.4L4 9l5.4-5.4L10.8 5z"/></svg></button>
+        <button type="button" id="redo" class="icon-btn" title="Redo (Ctrl+Y)" aria-label="Redo" disabled><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M16.2 8H9a6 6 0 0 0 0 12h7v-2H9a4 4 0 0 1 0-8h7.2l-3 3 1.4 1.4L20 9l-5.4-5.4L13.2 5z"/></svg></button>
       </div>
-      <p class="muted">Settings file: <code id="config-path"></code></p>
-      <button id="open-folder" class="ghost">Open settings folder</button>
+    </header>
+
+    <!-- Live preview: the real panel page at 2560x720, scaled, with the editing overlay on top. -->
+    <section id="stage" class="stage" aria-label="Live preview">
+      <div id="screen" class="screen">
+        <iframe id="preview" src="index.html?preview=1" title="Live preview of the Edge" width="2560" height="720" tabindex="-1" aria-hidden="true"></iframe>
+        <div id="overlay" class="overlay" aria-label="Edge layout, 4 by 2 cells"></div>
+      </div>
+      <div id="pagebar" class="pagebar"></div>
     </section>
+
+    <section id="view-widgets" class="view panels">
+      <div class="panel" aria-labelledby="catalog-title">
+        <div class="panel-head">
+          <div class="panel-title"><h3 id="catalog-title">Widgets</h3></div>
+          <label class="search">
+            <svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 3a7 7 0 0 1 5.6 11.2l4.6 4.6-1.4 1.4-4.6-4.6A7 7 0 1 1 10 3zm0 2a5 5 0 1 0 0 10 5 5 0 0 0 0-10z"/></svg>
+            <input id="catalog-search" type="search" placeholder="Search widgets" aria-label="Search widgets">
+          </label>
+        </div>
+        <div id="catalog" class="panel-body catalog"></div>
+      </div>
+      <div class="panel" aria-label="Widget settings">
+        <div id="settings-head" class="panel-head"></div>
+        <div id="settings-body" class="panel-body"></div>
+      </div>
+      <div class="panel" aria-label="Widget personalization">
+        <div class="panel-head"><div class="panel-title"><h3>Widget Personalization</h3></div></div>
+        <div id="style-body" class="panel-body"></div>
+      </div>
+    </section>
+
+    <section id="view-pages" class="view" hidden></section>
+    <section id="view-screen" class="view" hidden></section>
+    <section id="view-device" class="view" hidden></section>
+    <section id="view-app" class="view" hidden></section>
   </main>
 
-  <footer>
-    <span id="status" class="status" role="status"></span>
-    <button id="close" class="ghost">Close</button>
-    <button id="save" class="primary">Save</button>
-  </footer>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="icons.js"></script>
+  <script src="widgets/catalog.js"></script>
+  <script src="settings-core.js"></script>
+  <script src="settings-fields.js"></script>
+  <script src="settings-widgets.js"></script>
+  <script src="settings-views.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

@@ -42,6 +42,7 @@ public partial class App : System.Windows.Application
         WindowIcon = LoadWindowIcon();
         _config = AppConfig.Load();
         _panel = new MainWindow(_config);
+        _panel.DisplayModeChanged += SaveQuietly;
         _panel.Show();
 
         _tray = BuildTray(_panel);
@@ -70,6 +71,13 @@ public partial class App : System.Windows.Application
             SaveQuietly();
         };
 
+        var desktop = new Forms.ToolStripMenuItem("Desktop mode (hide panel)") { CheckOnClick = true };
+        desktop.CheckedChanged += (_, _) =>
+        {
+            if (panel.DesktopMode == desktop.Checked) return;
+            panel.SetDisplayMode(desktop.Checked ? DisplayModes.Desktop : DisplayModes.Panel); // saves via DisplayModeChanged
+        };
+
         var startup = new Forms.ToolStripMenuItem("Start with Windows") { CheckOnClick = true };
         startup.CheckedChanged += (_, _) => { if (startup.Checked != WindowsStartup.IsEnabled()) WindowsStartup.SetEnabled(startup.Checked); };
 
@@ -78,14 +86,16 @@ public partial class App : System.Windows.Application
         {
             guard.Checked = panel.MouseGuardEnabled;
             evict.Checked = panel.EvictWindowsEnabled;
+            desktop.Checked = panel.DesktopMode;
             startup.Checked = WindowsStartup.IsEnabled();
         };
 
-        var settings = new Forms.ToolStripMenuItem("Settingsâ€¦", null, (_, _) => OpenSettings());
+        var settings = new Forms.ToolStripMenuItem("Settings…", null, (_, _) => OpenSettings());
         settings.Font = new Font(settings.Font, System.Drawing.FontStyle.Bold);
 
         menu.Items.Add(settings);
         menu.Items.Add(new Forms.ToolStripSeparator());
+        menu.Items.Add(desktop);
         menu.Items.Add(guard);
         menu.Items.Add(evict);
         menu.Items.Add(startup);
@@ -114,12 +124,22 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        _settings = new SettingsWindow(() => _config, config =>
+        if (_panel is null) return;
+
+        var settings = new SettingsWindow(_panel, () => _config, config =>
         {
             _config = config;
-            _panel?.ApplyConfig(config);
+            return _panel.ApplyConfig(config);
         });
-        _settings.Closed += (_, _) => _settings = null;
+        // Live preview: the settings page gets the same sensors/media/audio/icons as the panel.
+        Action<string> mirror = settings.Mirror;
+        _panel.Mirror += mirror;
+        settings.Closed += (_, _) =>
+        {
+            _panel.Mirror -= mirror;
+            _settings = null;
+        };
+        _settings = settings;
         _settings.Show();
         _settings.Activate();
     }

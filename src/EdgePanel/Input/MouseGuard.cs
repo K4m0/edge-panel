@@ -51,6 +51,18 @@ public sealed class MouseGuard : IDisposable
         _lastOutside = fallbackPoint;
     }
 
+    /// <summary>
+    /// Moves the cursor back to where the mouse last was outside the Edge. A touch on the Edge
+    /// parks the cursor there, so injected touchpad input would otherwise act on the panel itself.
+    /// </summary>
+    public void ReturnCursor()
+    {
+        var zone = _zone;
+        if (zone is null) return;
+        if (GetCursorPos(out var current) && zone.Bounds.Contains(current))
+            SetCursorPos(_lastOutside.X, _lastOutside.Y);
+    }
+
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
     {
         var zone = _zone;

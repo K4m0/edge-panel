@@ -1,106 +1,100 @@
 # Edge Panel
 
-A lightweight, touch-first dashboard for the **Corsair XENEON EDGE** 14.5" touchscreen that runs **without iCUE**.
+A lightweight, touch-first dashboard for the **Corsair XENEON EDGE** 14.5" touchscreen. It runs **without iCUE** and is built to work like iCUE's widget screen: pages you swipe between, a widget catalog, per-widget settings and personalization.
 
-![Edge Panel running on a XENEON EDGE](docs/screenshot.png)
+![Main page](docs/page-main.png)
+![Apps page](docs/page-apps.png)
+![Tools page](docs/page-tools.png)
 
 ## Why
 
-With iCUE, the Edge sometimes loses its widgets when the main monitor is turned off and never gets them back. Edge Panel fixes that and keeps the Edge as a dedicated touch panel instead of an extra desktop:
+With iCUE, the Edge sometimes loses its widgets when the main monitor is turned off and never gets them back. Edge Panel fixes that and keeps the Edge as a dedicated touch panel:
 
-- **Finds the Edge by its EDID name** (`XENEON EDGE`), not by display index, and re-pins itself whenever the display topology changes, such as when the main monitor turns off or on, or after sleep or resolution changes.
-- **Keeps the physical mouse out of the Edge.** A low-level mouse hook blocks mouse movement and clicks inside the Edge's area. Touch and pen input still work, because Windows tags them with the `MI_WP_SIGNATURE` marker. After you touch the Edge, the next real mouse movement sends the cursor back to where it was.
-- **Keeps other windows off the Edge.** Any app window that lands there (Win+Shift+Arrow, an app restoring its last position) is moved back to the main display.
-- **Does not steal focus.** Touching the panel leaves your game or app in the foreground (`WS_EX_NOACTIVATE`).
-- **If the Edge is the only display left,** the mouse guard switches off so you are never locked out.
+- **Finds the Edge by its EDID name** (`XENEON EDGE`), not by display index, and re-pins itself whenever the display topology changes.
+- **Keeps the physical mouse out of the Edge** (block cursor access). Touch and pen still work, because Windows tags them with `MI_WP_SIGNATURE`.
+- **Keeps other windows off the Edge.** App windows that land there move back to the main display.
+- **Never steals focus.** Touching the panel, including the virtual keyboard and touchpad, leaves your game or app in the foreground.
+- **Desktop mode** turns the Edge back into a normal monitor with one hotkey. If the Edge is the only display left, the mouse guard turns itself off.
 
-## Widgets (prototype)
+## Widgets
 
-- Clock and date
-- CPU, GPU and RAM load gauges with temperatures (via [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor))
-- Now playing (title and artist) with previous, play/pause and next. It uses Windows media sessions, so it works with Spotify, browsers and most players.
-- Volume down, mute and up
-- App/URL launcher buttons, configured in `config.json`
+Each page is a 4 × 2 grid. Widgets come in sizes **S** (1×1), **Wide** (2×1), **M** (1×2), **L** (2×2) and **XL** (the full page).
 
-The UI is plain HTML/CSS/JS in `src/EdgePanel/wwwroot`, hosted in WebView2. Edit it like any web page.
+| Category | Widgets |
+| --- | --- |
+| Time | Clock Face (digital, big seconds, analog, flip; 12/24h; time zone), Calendar, Chronograph (stopwatch and timer) |
+| System | 2 Sensors, Sensor (gauge or value), Sensor Chart, Sensor List. These can use any sensor LibreHardwareMonitor sees: CPU, GPU, RAM, motherboard, drives, network, fans and AIO coolers |
+| Media | Media (album art, playback controls), Volume (output device switcher, mic, per-app volume mixer), Image / Video, Slideshow, YouTube Video |
+| Web | Web URL, iFrame (custom HTML), Twitch Chat, SimHub, Weather, AQI (Weather and AQI use [Open-Meteo](https://open-meteo.com), no API key) |
+| Control | Launch App (real app icons), Button Deck (keystrokes, apps, media keys, URLs, typed text, page switching), Virtual Keyboard, Virtual Touchpad |
+| Fun | Decision Coin |
 
-## Requirements
+## Settings
 
-- Windows 10 2004+ / Windows 11
-- [.NET 10 SDK](https://dotnet.microsoft.com/download) to build it
-- WebView2 Runtime (preinstalled on Windows 11)
-- **Close iCUE, or disable its Edge dashboard,** so the two don't fight over the screen.
-- For touch on the right screen, map the touch digitizer to the Edge once: *Control Panel → Tablet PC Settings → Setup → Touch input*, then tap the Edge when asked.
+Open the settings window by left-clicking the tray icon, or right-click it and choose **Settings…**. Changes apply to the Edge right away.
 
-## Build and run
+![Settings](docs/settings.png)
+
+- **Widgets**: a live preview of the Edge, page tabs (add, rename, duplicate, reorder, delete), a searchable widget catalog, the selected widget's settings, and per-widget personalization (colors, background image, transparency). Drag a widget from the catalog onto an empty cell. Drag widgets around the preview to move them.
+- **Pages Personalization**: background color or image, text, accent and widget colors, transparency, and corner radius. You can set these globally or per page.
+- **Screen Setup**: display mode (widgets or desktop), hotkeys for switching mode and changing pages (default `Ctrl+Alt+E`, `Ctrl+Alt+Left/Right`), block cursor access, keep windows off the Edge, and re-detect the Edge.
+- **Device Settings**: brightness, contrast and RGB gains through DDC/CI, plus restore to default.
+- **App Settings**: start with Windows, sensor refresh rate and developer tools.
+
+The tray menu also has quick toggles: block mouse, keep windows off, desktop mode, start with Windows, re-detect, open log and exit.
+
+## Not supported
+
+These iCUE features need a vendor SDK or Windows features that are unavailable to apps like this one:
+
+- **Stream Deck integration** needs the Elgato SDK. Use **Button Deck** instead.
+- **FPS counter** needs PresentMon or RTSS.
+- **Windows notifications** require package identity.
+- **Auto rotation**: rotate the Edge in Windows display settings. The panel switches to a portrait layout by itself.
+
+## Install
+
+Download `EdgePanel.exe` from [Releases](https://github.com/K4m0/edge-panel/releases) and run it. It is a single self-contained file, so .NET doesn't need to be installed. Put it somewhere permanent before you turn on **Start with Windows**, because that setting remembers the exe's location.
+
+Before you start:
+
+- **Close iCUE, or switch its Edge screen to Desktop mode,** so the two don't fight over the display.
+- Map touch to the Edge once, so touches land on the right screen: go to *Control Panel → Tablet PC Settings → Setup → Touch input* and tap the Edge.
+- Install the WebView2 Runtime if you're on Windows 10. Windows 11 already includes it.
+- **CPU temperature** only shows when Edge Panel runs as administrator, because LibreHardwareMonitor requires it. To get CPU temperature at startup, use Task Scheduler: an "At log on" trigger with "Run with highest privileges".
+
+Your settings are stored in `%LOCALAPPDATA%\EdgePanel\config.json`. Images and videos you add are copied to `%LOCALAPPDATA%\EdgePanel\media`. The log is `%LOCALAPPDATA%\EdgePanel\edge-panel.log`.
+
+## Build
+
+You need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
-dotnet build EdgePanel.sln -c Release
+dotnet build src/EdgePanel/EdgePanel.csproj -c Debug
 ```
+
+To build the single-file exe into `publish/`:
 
 ```bash
-src/EdgePanel/bin/Release/net10.0-windows10.0.19041.0/EdgePanel.exe
+dotnet publish src/EdgePanel/EdgePanel.csproj -c Release -o publish
 ```
 
-Edge Panel runs as a tray icon. Right-click the icon to:
+## How it works
 
-- turn the mouse guard on or off
-- turn window eviction on or off
-- re-detect the Edge
-- open the log
-- exit
-
-**CPU temperature** only shows when Edge Panel runs as administrator, because that is a LibreHardwareMonitor requirement. Load values, GPU and RAM work without it.
-
-### Start with Windows
-
-Press `Win+R`, type `shell:startup`, and put a shortcut to `EdgePanel.exe` in that folder. If you want CPU temperatures at startup, use Task Scheduler instead, with "Run with highest privileges" and an "At log on" trigger.
-
-## Configuration
-
-`config.json` sits next to the executable and allows comments:
-
-| Key | Default | Description |
-| --- | --- | --- |
-| `monitor.nameContains` | `XENEON EDGE` | Substring of the monitor's friendly name. Check the log if detection fails. |
-| `monitor.fallbackWidth/Height` | `2560` × `720` | Resolution match used when no name matches. Either orientation works. |
-| `mouseGuard` | `true` | Block the physical mouse on the Edge. |
-| `evictWindows` | `true` | Move other windows off the Edge. |
-| `noActivate` | `true` | Don't take focus when the panel is touched. |
-| `sensorIntervalMs` | `1000` | Telemetry refresh rate. |
-| `devTools` | `false` | Enable WebView2 DevTools (F12) to work on the UI. |
-| `shortcuts` | Spotify, Discord, ... | `{ label, icon, target, arguments? }`. `target` is anything Windows can open: an exe, a URL or a URI scheme. Icons: `music`, `chat`, `game`, `calc`, `chart`, `globe`, `app`. |
-
-Logs are written to `%LOCALAPPDATA%\EdgePanel\edge-panel.log`.
-
-## Project layout
+The app is a WPF host with two WebView2 pages: the panel (`wwwroot/index.html`) and the settings editor (`wwwroot/settings.html`). Widgets are plain JavaScript modules in `wwwroot/widgets/`, and `widgets/catalog.js` defines each widget's sizes, defaults and settings form. To add a widget, add a catalog entry and a module. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) describes the layout model, the config schema and every message between the host and the pages.
 
 ```
 src/EdgePanel/
-  App.xaml.cs              tray icon, single instance
-  MainWindow.xaml.cs       panel window, display-change handling, WebView2 bridge
-  Display/MonitorLocator   monitor enumeration + EDID friendly names (DisplayConfig API)
-  Display/WindowEvictor    keeps other windows off the Edge
-  Input/MouseGuard         WH_MOUSE_LL hook, mouse blocked / touch allowed
-  Telemetry/               LibreHardwareMonitor sensors, Windows media session
-  wwwroot/                 the UI (HTML/CSS/JS)
-  config.json
+  App.xaml.cs               tray, single instance, settings window
+  MainWindow.xaml.cs        panel window, display changes, message routing
+  AppConfig.cs              config v3 (pages, theme, hotkeys) + migration
+  Audio/                    Core Audio: volume, devices, per-app mixer (NAudio)
+  Display/                  monitor detection, window evictor, DDC/CI
+  Input/                    mouse guard, hotkeys, SendInput (keys, text, pointer)
+  Shell/                    app icon extraction
+  Telemetry/                LibreHardwareMonitor sensors, Windows media session
+  wwwroot/                  panel, settings editor, widgets
 ```
-
-### Page ↔ host messages
-
-| Direction | Message |
-| --- | --- |
-| page → host | `{type:"ready"}`, `{type:"media", action:"toggle"\|"next"\|"prev"}`, `{type:"volume", action:"up"\|"down"\|"mute"}`, `{type:"launch", id}` |
-| host → page | `{type:"config", data:{shortcuts}}`, `{type:"sensors", data:{cpuLoad, cpuTemp, gpuLoad, ...}}`, `{type:"media", data:{title, artist, isPlaying}}` |
-
-The page can only launch shortcuts by their index in `config.json`. It never sends paths or commands.
-
-## Known limitations
-
-- This is a prototype, tested on a single XENEON EDGE placed below a 2560×1440 main monitor.
-- Windows ignores the mouse guard while an elevated (admin) window has focus, unless Edge Panel also runs elevated.
-- Windows can't move elevated app windows from a non-elevated process, so the window evictor skips them.
 
 ## Credits
 

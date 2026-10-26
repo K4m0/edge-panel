@@ -3,8 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:wv2="clr-namespace:Microsoft.Web.WebView2.Wpf;assembly=Microsoft.Web.WebView2.Wpf"
         Title="Edge Panel Settings"
-        Width="980" Height="760"
-        MinWidth="720" MinHeight="520"
+        Width="1500" Height="950"
+        MinWidth="1100" MinHeight="680"
         WindowStartupLocation="CenterScreen"
         Background="#0b0e13">
     <wv2:WebView2 x:Name="Web" />
