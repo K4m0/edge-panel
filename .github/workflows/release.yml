@@ -1,0 +1,45 @@
+# Builds Edge Panel and publishes a GitHub release when a version tag (v1.2.3) is pushed.
+# The release gets EdgePanel-<version>-win-x64.zip: the self-contained app, the install
+# script and the license files.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Publish
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          dotnet publish src/EdgePanel/EdgePanel.csproj -c Release -o out/EdgePanel -p:Version=$version
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $name = "EdgePanel-${{ github.ref_name }}-win-x64"
+          Copy-Item scripts/install.ps1, LICENSE, NOTICE, THIRD-PARTY-NOTICES.md, docs/INSTALL.md out/
+          Compress-Archive -Path out/* -DestinationPath "$name.zip"
+          (Get-FileHash "$name.zip" -Algorithm SHA256).Hash.ToLower() + "  $name.zip" | Out-File "$name.zip.sha256" -Encoding ascii
+
+      - name: Create release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $name = "EdgePanel-${{ github.ref_name }}-win-x64"
+          gh release create "${{ github.ref_name }}" "$name.zip" "$name.zip.sha256" `
+            --title "Edge Panel ${{ github.ref_name }}" `
+            --notes-file .github/release-notes.md

@@ -54,9 +54,11 @@ These iCUE features need a vendor SDK or Windows features that are unavailable t
 
 ## Install
 
-See the **[installation guide](docs/INSTALL.md)**, which covers building, installing to Program Files, first setup, the Stream Deck widget and uninstalling.
+**Easiest:** download the latest zip from [Releases](https://github.com/K4m0/edge-panel/releases), extract it, and run `install.ps1` from PowerShell opened as administrator. No .NET install is needed.
 
-The short version, which needs the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0). Clone and build:
+See the **[installation guide](docs/INSTALL.md)**, which covers downloading or building, installing to Program Files, first setup, the Stream Deck widget and uninstalling.
+
+To build it yourself, you need the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0). Clone and build:
 
 ```bash
 git clone https://github.com/K4m0/edge-panel.git

@@ -1,12 +1,18 @@
-# Installs the published app (publish\) into C:\Program Files\EdgePanel and starts it.
-# Run from an elevated PowerShell (see docs/INSTALL.md).
+# Installs Edge Panel into C:\Program Files\EdgePanel and starts it.
+# Run from an elevated PowerShell (see docs/INSTALL.md). Works from a release zip
+# (app in .\EdgePanel next to this script) or from a source checkout (app in ..\publish).
 # Waits for a running copy to exit and verifies the copied exe, because copying over a
 # still-locked exe can fail in a way that is easy to miss.
 param(
-    [string]$Source = (Join-Path $PSScriptRoot "..\publish"),
+    [string]$Source,
     [string]$Target = (Join-Path $env:ProgramFiles "EdgePanel")
 )
 $ErrorActionPreference = "Stop"
+
+if (-not $Source) {
+    $fromZip = Join-Path $PSScriptRoot "EdgePanel"
+    $Source = if (Test-Path (Join-Path $fromZip "EdgePanel.exe")) { $fromZip } else { Join-Path $PSScriptRoot "..\publish" }
+}
 
 $isAdmin = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (-not $isAdmin) { throw "Run this script from PowerShell opened as administrator." }

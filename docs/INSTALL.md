@@ -6,12 +6,19 @@ This guide covers building Edge Panel from source, installing it, and setting it
 
 - **Windows 10 (version 2004 or later) or Windows 11, 64-bit.**
 - **A Corsair XENEON EDGE** connected over DisplayPort or USB-C, plus the USB cable for touch.
-- **[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)**, only needed to build the app. The finished app is self-contained and runs without .NET installed.
-- **[Git](https://git-scm.com/download/win)**, or download the repository as a ZIP from GitHub.
+- **To build from source only:** the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) and [Git](https://git-scm.com/download/win). Release downloads are self-contained and run without .NET installed.
 - **Microsoft Edge WebView2 Runtime.** Windows 11 already has it. On Windows 10, [download it here](https://developer.microsoft.com/microsoft-edge/webview2/#download-section) if needed.
 - **Optional: [Elgato Stream Deck](https://www.elgato.com/downloads) 7 or later**, if you want the Stream Deck widget.
 
-## 2. Build
+## 2. Get the app
+
+### Option A: download a release (no .NET needed)
+
+1. Download the latest `EdgePanel-<version>-win-x64.zip` from [Releases](https://github.com/K4m0/edge-panel/releases).
+2. Extract it. You get an `EdgePanel` folder, `install.ps1` and the license files.
+3. Continue with [3. Install](#3-install), running the script from the extracted folder instead of the cloned repository.
+
+### Option B: build from source
 
 Open a terminal (PowerShell or Command Prompt) and run:
 
@@ -34,13 +41,13 @@ The `publish` folder now holds `EdgePanel.exe`, a few native DLLs and the `wwwro
 Install Edge Panel in **Program Files**. That folder can only be changed by administrators, which is what makes **Run as administrator** safe to use. That option is needed for CPU temperatures.
 
 1. Open **PowerShell as administrator**: Start menu → type `PowerShell` → *Run as administrator*.
-2. Go to the folder you cloned. For example:
+2. Go to the extracted release folder, or to the folder you cloned. For example:
 
    ```powershell
-   cd "$env:USERPROFILE\edge-panel"
+   cd "$env:USERPROFILE\Downloads\EdgePanel-v0.4.0-win-x64"
    ```
 
-3. Run the install script. It closes any running copy, copies the `publish` folder to `C:\Program Files\EdgePanel`, checks the copy, and starts the app:
+3. Run the install script. It closes any running copy, copies the app to `C:\Program Files\EdgePanel`, checks the copy, and starts the app:
 
    ```powershell
    powershell -NoProfile -ExecutionPolicy Bypass -File scripts\install.ps1
@@ -54,7 +61,9 @@ Install Edge Panel in **Program Files**. That folder can only be changed by admi
    $s = (New-Object -ComObject WScript.Shell).CreateShortcut("$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Edge Panel.lnk"); $s.TargetPath = "C:\Program Files\EdgePanel\EdgePanel.exe"; $s.Save()
    ```
 
-To update later, pull the latest code, run `dotnet publish` again, and run the install script again.
+To update later, download the new release (or pull and run `dotnet publish` again) and run the install script again. Your settings are kept.
+
+The release build is not code-signed yet, so Windows SmartScreen may warn about it the first time. Each release lists the zip's SHA-256 so you can check your download.
 
 ## 4. First setup
 
