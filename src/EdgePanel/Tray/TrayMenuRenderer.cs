@@ -60,6 +60,7 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
 
         menu.Opening += (_, _) =>
         {
+            menu.AutoSize = true; // re-measure on every open (DPI or labels may have changed)
             RoundCorners(menu.Handle);
             Layout(menu);
         };
@@ -67,9 +68,17 @@ public sealed class TrayMenuRenderer : ToolStripProfessionalRenderer
         // stretch the rows to the real inner width so margins are even on both sides.
         menu.Opened += (_, _) =>
         {
-            var inner = menu.DisplayRectangle.Width;
+            // WinForms lays rows (and separators) out ~30 px narrower than the window it opens,
+            // leaving a gap on the right. Freeze the window size and stretch every row to it.
+            menu.AutoSize = false;
+            var inner = menu.ClientSize.Width - menu.Padding.Horizontal;
+            menu.SuspendLayout();
             foreach (ToolStripItem item in menu.Items)
-                if (item is not ToolStripSeparator && item.Width != inner) item.Width = inner;
+            {
+                item.AutoSize = false;
+                item.Width = inner;
+            }
+            menu.ResumeLayout(true);
             menu.Invalidate();
         };
     }
