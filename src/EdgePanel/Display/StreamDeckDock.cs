@@ -19,6 +19,7 @@ public sealed class StreamDeckDock
     private const int ParkedX = -32000;
 
     private IntPtr _window;
+    private DateTime _nextSearch = DateTime.MinValue;
     private RECT? _target;
     private RECT? _originalBounds;
 
@@ -139,7 +140,12 @@ public sealed class StreamDeckDock
         if (_window != IntPtr.Zero && IsWindowVisible(_window)) return _window;
         _window = IntPtr.Zero;
 
-        var pids = Process.GetProcessesByName("StreamDeck").Select(p => (uint)p.Id).ToHashSet();
+// A missing deck (Stream Deck closed, virtual deck hidden) is retried every few seconds, not every call.
+        if (DateTime.Now < _nextSearch) return IntPtr.Zero;
+        _nextSearch = DateTime.Now.AddSeconds(5);
+
+        var pids = new System.Collections.Generic.HashSet<uint>();
+        foreach (var p in Process.GetProcessesByName("StreamDeck")) using (p) pids.Add((uint)p.Id);
         if (pids.Count == 0) return IntPtr.Zero;
 
         var title = new StringBuilder(64);

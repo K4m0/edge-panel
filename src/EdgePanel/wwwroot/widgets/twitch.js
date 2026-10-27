@@ -27,6 +27,7 @@
         return {};
       }
       const f = h("iframe", "frame-fill");
+      f.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"); // no top-navigation: a framed site must never replace the panel
       f.src = `https://www.twitch.tv/embed/${ch}/chat?parent=edge.panel${s.dark !== false ? "&darkpopout" : ""}`;
       el.classList.add("bleed");
       el.appendChild(f);

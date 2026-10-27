@@ -89,6 +89,8 @@ public partial class SettingsWindow : Window
 
     private void OnWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
+        if (!WebHost.IsFrom(e, "settings.html")) return; // only our own page may drive the host
+
         try
         {
             using var doc = JsonDocument.Parse(e.WebMessageAsJson);
@@ -147,7 +149,7 @@ public partial class SettingsWindow : Window
                     break;
 
                 case "openConfigFolder":
-                    Process.Start(new ProcessStartInfo(Log.Directory) { UseShellExecute = true });
+                    ShellLauncher.Open(Log.Directory);
                     break;
 
                 case "close":
@@ -171,10 +173,17 @@ public partial class SettingsWindow : Window
             ? startup.GetBoolean()
             : WindowsStartup.IsEnabled();
         // Only touch startup when something changed: admin mode may need a UAC prompt.
+        string? startupError = null;
         if (startWithWindows != WindowsStartup.IsEnabled() || config.RunAsAdmin != _getConfig().RunAsAdmin)
-            WindowsStartup.Apply(startWithWindows, config.RunAsAdmin);
+            startupError = WindowsStartup.Apply(startWithWindows, config.RunAsAdmin);
+        if (startupError is not null && config.RunAsAdmin)
+        {
+            config.RunAsAdmin = false; // admin mode could not be set up safely; don't keep asking
+            config.Save();
+        }
 
         var problems = _apply(config);
+        if (startupError is not null) problems.Add(startupError);
         Post(new { type = "saved" });
         SendState();
         if (problems.Count > 0) Post(new { type = "error", message = string.Join("\n", problems) });

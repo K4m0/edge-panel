@@ -44,6 +44,7 @@
         if (s.loop) q.set("loop", "1");
       }
       const f = h("iframe", "frame-fill");
+      f.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"); // no top-navigation: a framed site must never replace the panel
       f.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
       f.referrerPolicy = "strict-origin-when-cross-origin";
       f.src = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(path)}?${q}`;

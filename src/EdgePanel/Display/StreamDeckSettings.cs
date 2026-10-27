@@ -77,7 +77,7 @@ public static class StreamDeckSettings
     });
 
     public static string ExePath =>
-        Process.GetProcessesByName("StreamDeck").Select(TryPath).FirstOrDefault(p => p is not null)
+        RunningPath()
         ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Elgato", "StreamDeck", "StreamDeck.exe");
 
     /// <summary>What the settings editor shows for the Stream Deck link.</summary>
@@ -87,7 +87,7 @@ public static class StreamDeckSettings
     {
         var exe = ExePath;
         var installed = File.Exists(exe);
-        var running = Process.GetProcessesByName("StreamDeck").Length > 0;
+        var running = IsRunning();
         string? version = null;
         try { if (installed) version = FileVersionInfo.GetVersionInfo(exe).ProductVersion; } catch { }
         var (json, _, _) = ReadConfig();
@@ -108,6 +108,7 @@ public static class StreamDeckSettings
 
         // Kill (not close): a normal exit would save the old settings over ours.
         foreach (var p in Process.GetProcessesByName("StreamDeck"))
+        using (p)
         {
             try { p.Kill(); p.WaitForExit(5000); } catch (Exception ex) { Log.Error("Stopping Stream Deck failed", ex); }
         }
@@ -122,6 +123,22 @@ public static class StreamDeckSettings
         }
         Restart(exe);
         return changed;
+    }
+
+// Process objects hold OS handles; dispose them instead of waiting for the finalizer.
+    private static string? RunningPath()
+    {
+        string? path = null;
+        foreach (var p in Process.GetProcessesByName("StreamDeck"))
+            using (p) path ??= TryPath(p);
+        return path;
+    }
+
+    public static bool IsRunning()
+    {
+        var any = false;
+        foreach (var p in Process.GetProcessesByName("StreamDeck")) using (p) any = true;
+        return any;
     }
 
     private static string? TryPath(Process p)

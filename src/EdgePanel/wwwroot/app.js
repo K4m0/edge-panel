@@ -345,6 +345,20 @@
   setTimeout(tick, 1000 - (Date.now() % 1000) + 5);
 
   /* ---------- Host bridge ---------- */
+  const audioIcons = new Map(); // pid -> icon data URL
+
+  /**
+   * The host hides the panel in desktop mode or when the Edge is unplugged, then suspends the WebView.
+   * Embeds would keep playing sound until then, so unload them and pause videos; restore on show.
+   */
+  function setActive(active) {
+    for (const f of document.querySelectorAll("iframe")) {
+      if (!active && f.src && f.src !== "about:blank") { f.dataset.src = f.src; f.src = "about:blank"; }
+      else if (active && f.dataset.src) { f.src = f.dataset.src; delete f.dataset.src; }
+    }
+    for (const v of document.querySelectorAll("video")) active ? v.play().catch(() => {}) : v.pause();
+  }
+
   function onMessage(msg) {
     if (!msg || typeof msg !== "object") return;
     const { type, data } = msg;
@@ -358,11 +372,21 @@
         broadcast("media", m);
         break;
       }
-      case "audio": state.audio = data ?? null; broadcast("audio", state.audio); break;
+      case "audio": {
+        // The host sends each app's icon only once (they are large); fill them in from the cache.
+        for (const s of data?.sessions ?? []) {
+          if (s.icon) audioIcons.set(s.pid, s.icon);
+          else if (audioIcons.has(s.pid)) s.icon = audioIcons.get(s.pid);
+        }
+        state.audio = data ?? null;
+        broadcast("audio", state.audio);
+        break;
+      }
       case "appIcons": state.appIcons = data ?? {}; broadcast("appIcons", state.appIcons); break;
       case "goto": go(msg.index ?? data?.index ?? data, { report: false }); break;
       case "nav": go(pageIndex + (Number(msg.dir ?? data?.dir) < 0 ? -1 : 1)); break;
       case "dockState": broadcast("dockState", msg); break;
+      case "visibility": setActive(msg.visible !== false); break;
       default: break;
     }
   }

@@ -25,14 +25,21 @@
     <PackageReference Include="NAudio.Wasapi" Version="2.2.1" />
   </ItemGroup>
 
-  <!-- Single-file, self-contained exe: dotnet publish -c Release (see README). -->
+  <!--
+    Self-contained publish: dotnet publish -c Release -o publish (see docs/INSTALL.md).
+    The managed code is one exe; native DLLs and wwwroot sit next to it instead of being extracted
+    to %TEMP% at run time. That matters when running elevated: %TEMP% is writable without admin,
+    while the install folder (Program Files) is not.
+  -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
-    <IncludeAllContentForSelfExtract>true</IncludeAllContentForSelfExtract>
+    <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
     <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
     <DebugType>none</DebugType>
+    <!-- Don't ship the NuGet packages' IntelliSense XML files. -->
+    <AllowedReferenceRelatedFileExtensions>.none</AllowedReferenceRelatedFileExtensions>
   </PropertyGroup>
 
   <ItemGroup>

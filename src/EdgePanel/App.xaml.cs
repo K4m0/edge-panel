@@ -6,6 +6,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using EdgePanel.Shell;
 using EdgePanel.Tray;
 using Forms = System.Windows.Forms;
 
@@ -26,6 +27,13 @@ public partial class App : System.Windows.Application
     protected override void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Elevated helper runs (register/unregister the startup task) do their job and exit; no UI.
+        if (WindowsStartup.HandleHelperCommand(e.Args) is { } exitCode)
+        {
+            Shutdown(exitCode);
+            return;
+        }
 
         var config = AppConfig.Load();
 
@@ -112,7 +120,7 @@ public partial class App : System.Windows.Application
         var startup = TrayMenuRenderer.Item("Start with Windows", '\uE768', checkable: true);
         startup.CheckedChanged += (_, _) =>
         {
-            if (startup.Checked != WindowsStartup.IsEnabled()) WindowsStartup.Apply(startup.Checked, _config.RunAsAdmin);
+            if (startup.Checked != WindowsStartup.IsEnabled() && WindowsStartup.Apply(startup.Checked, _config.RunAsAdmin) is { } error) Log.Error(error);
         };
 
         // Refresh check marks every time the menu opens, since Settings can change them too.
@@ -146,7 +154,7 @@ public partial class App : System.Windows.Application
         menu.Items.Add(startup);
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(TrayMenuRenderer.Item("Re-detect Edge", '', (_, _) => panel.Reposition("tray")));
-        menu.Items.Add(TrayMenuRenderer.Item("Open log", '', (_, _) => Process.Start(new ProcessStartInfo(Log.FilePath) { UseShellExecute = true })));
+        menu.Items.Add(TrayMenuRenderer.Item("Open log", '', (_, _) => ShellLauncher.Open(Log.FilePath)));
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(exit);
         TrayMenuRenderer.Style(menu);

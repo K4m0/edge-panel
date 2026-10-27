@@ -53,6 +53,13 @@ public partial class MainWindow : Window
     private volatile bool _webReady;
     private int _currentPage;
 
+    // Payload trimming for the panel (it runs 24/7): only the sensors its widgets use, and each
+    // mixer app's icon only once per page load. The settings window still gets everything.
+    private AppConfig? _sensorsFor;
+    private HashSet<string> _neededSensors = new(StringComparer.Ordinal);
+    private readonly HashSet<uint> _iconsSent = new();
+    private int _volumeFeedbackPending;
+
     public MainWindow(AppConfig config)
     {
         _config = config;
@@ -187,7 +194,7 @@ public partial class MainWindow : Window
         {
             _streamDeck.Release();
             _mouseGuard.SetZone(null, default);
-            if (IsVisible) Hide();
+            if (IsVisible) { Hide(); SetPanelActive(false); }
             return;
         }
 
@@ -197,10 +204,37 @@ public partial class MainWindow : Window
         else
             _mouseGuard.SetZone(edge.Bounds, Center(_mainMonitor.WorkArea));
 
-        if (!IsVisible) Show();
+        if (!IsVisible) { Show(); SetPanelActive(true); }
         PinToEdge();
         // WPF may resize the window when it crosses a DPI boundary; enforce the bounds again afterwards.
         Dispatcher.BeginInvoke(PinToEdge, DispatcherPriority.Background);
+    }
+
+    /// <summary>
+    /// While hidden (desktop mode, Edge unplugged) the page stops its embeds (YouTube would keep playing)
+    /// and the WebView is suspended, so a hidden panel costs nothing.
+    /// </summary>
+    private async void SetPanelActive(bool active)
+    {
+        try
+        {
+            if (Web.CoreWebView2 is not { } core) return;
+            if (active)
+            {
+                core.Resume();
+                Post(new { type = "visibility", visible = true });
+            }
+            else
+            {
+                Post(new { type = "visibility", visible = false });
+                await Task.Delay(500); // let the page unload its embeds first
+                if (!IsVisible) await core.TrySuspendAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Changing panel activity failed", ex);
+        }
     }
 
     private void PinToEdge()
@@ -283,6 +317,8 @@ public partial class MainWindow : Window
 
     private void OnWebMessage(object? sender, CoreWebView2WebMessageReceivedEventArgs e)
     {
+        if (!WebHost.IsFrom(e, "index.html")) return; // only our own page may drive the host
+
         try
         {
             using var doc = JsonDocument.Parse(e.WebMessageAsJson);
@@ -293,8 +329,9 @@ public partial class MainWindow : Window
             {
                 case "ready":
                     _webReady = true;
+                    lock (_iconsSent) _iconsSent.Clear(); // new page: it has no icons cached yet
                     PostConfig();
-                    PushLiveState(PostJson, includeIcons: false); // PostConfig already sends them
+                    PushLiveState(PostJson, includeIcons: false, panel: true); // PostConfig already sends them
                     break;
                 case "media" when Str(root, "action") is { } action:
                     _ = _media.CommandAsync(action);
@@ -304,7 +341,11 @@ public partial class MainWindow : Window
                     _ = Task.Run(() =>
                     {
                         _audio.Handle(volume);
-                        if (_audio.Read() is { } state) Broadcast("audio", state); // instant feedback
+                        // Instant feedback, but coalesced: a dragged slider sends a message every few ms.
+                        if (Interlocked.Exchange(ref _volumeFeedbackPending, 1) == 1) return;
+                        Thread.Sleep(120);
+                        Interlocked.Exchange(ref _volumeFeedbackPending, 0);
+                        if (_audio.Read() is { } state) BroadcastAudio(state);
                     });
                     break;
                 case "launch":
@@ -360,14 +401,14 @@ public partial class MainWindow : Window
     /// Sends the current media (with art), sensors, audio and app icons to a page that just
     /// connected: the panel on "ready", or the settings window for its preview.
     /// </summary>
-    public void PushLiveState(Action<string> post, bool includeIcons = true)
+    public void PushLiveState(Action<string> post, bool includeIcons = true, bool panel = false)
     {
         post(Serialize("media", _media.Snapshot()));
-        if (_sensors is { } sensors) post(Serialize("sensors", sensors.Last));
+        if (_sensors is { } sensors) post(Serialize("sensors", panel ? PanelSensors(sensors.Last) : sensors.Last));
         var config = _config;
         _ = Task.Run(() =>
         {
-            if (_audio.Read() is { } audio) post(Serialize("audio", audio));
+            if (_audio.Read() is { } audio) { if (panel) BroadcastAudio(audio); else post(Serialize("audio", audio)); }
             if (includeIcons) post(Serialize("appIcons", AppIcons(config)));
         });
     }
@@ -459,15 +500,11 @@ public partial class MainWindow : Window
         if (string.IsNullOrWhiteSpace(target)) return;
         try
         {
-            var info = new ProcessStartInfo(Environment.ExpandEnvironmentVariables(target.Trim()))
-            {
-                Arguments = args ?? "",
-                UseShellExecute = true,
-            };
+            var file = Environment.ExpandEnvironmentVariables(target.Trim());
             // Many apps expect to start in their own folder (games, portable tools).
-            if (Path.IsPathRooted(info.FileName) && File.Exists(info.FileName))
-                info.WorkingDirectory = Path.GetDirectoryName(info.FileName) ?? "";
-            Process.Start(info);
+            var dir = Path.IsPathRooted(file) && File.Exists(file) ? Path.GetDirectoryName(file) : null;
+            // Never with Edge Panel's admin rights (see ShellLauncher).
+            ShellLauncher.Open(file, args, dir);
         }
         catch (Exception ex)
         {
@@ -540,9 +577,14 @@ public partial class MainWindow : Window
                 {
                     try
                     {
-                        if (_sensors is { } sensors) Broadcast("sensors", sensors.Read());
+                        if (_sensors is { } sensors)
+                        {
+                            var all = sensors.Read();
+                            if (_webReady) PostJson(Serialize("sensors", PanelSensors(all)));
+                            Mirror?.Invoke(Serialize("sensors", all)); // the settings sensor picker shows every sensor
+                        }
                         Broadcast("media", await _media.ReadAsync());
-                        if (_audio.Read() is { } audio) Broadcast("audio", audio);
+                        if (_audio.Read() is { } audio) BroadcastAudio(audio);
                     }
                     catch (Exception ex)
                     {
@@ -557,6 +599,58 @@ public partial class MainWindow : Window
         {
             _sensors?.Dispose();
         }
+    }
+
+    /// <summary>Only the sensors referenced by the panel's widgets (any "sensor" value in their settings).</summary>
+    private Dictionary<string, SensorValue> PanelSensors(IReadOnlyDictionary<string, SensorValue> all)
+    {
+        var config = _config;
+        if (!ReferenceEquals(config, _sensorsFor))
+        {
+            var needed = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var widget in config.Pages.SelectMany(p => p.Widgets)) CollectSensorIds(widget.Settings, needed);
+            // Widgets with empty settings use catalog defaults, which only reference aliases.
+            foreach (var alias in new[] { "cpu.load", "cpu.temp", "gpu.load", "gpu.temp", "gpu.hotspot", "ram.load" }) needed.Add(alias);
+            _neededSensors = needed;
+            _sensorsFor = config;
+        }
+        var result = new Dictionary<string, SensorValue>(_neededSensors.Count, StringComparer.Ordinal);
+        foreach (var id in _neededSensors)
+            if (all.TryGetValue(id, out var value)) result[id] = value;
+        return result;
+    }
+
+    private static void CollectSensorIds(System.Text.Json.Nodes.JsonNode? node, HashSet<string> ids)
+    {
+        switch (node)
+        {
+            case System.Text.Json.Nodes.JsonObject obj:
+                foreach (var (key, value) in obj)
+                {
+                    if (key == "sensor" && value is System.Text.Json.Nodes.JsonValue v && v.TryGetValue<string>(out var id)) ids.Add(id);
+                    else CollectSensorIds(value, ids);
+                }
+                break;
+            case System.Text.Json.Nodes.JsonArray arr:
+                foreach (var item in arr) CollectSensorIds(item, ids);
+                break;
+        }
+    }
+
+    /// <summary>Audio to the panel without icons it already has; the settings preview gets the full state.</summary>
+    private void BroadcastAudio(AudioState audio)
+    {
+        Mirror?.Invoke(Serialize("audio", audio));
+        if (!_webReady) return;
+        AudioState trimmed;
+        lock (_iconsSent)
+        {
+            trimmed = audio with
+            {
+                Sessions = audio.Sessions.Select(s => s.Icon is null || _iconsSent.Add(s.Pid) ? s : s with { Icon = null }).ToList(),
+            };
+        }
+        PostJson(Serialize("audio", trimmed));
     }
 
     /// <summary>Sends a <c>{type, data}</c> message to the panel and the settings window.</summary>

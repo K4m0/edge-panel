@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows.Threading;
 using EdgePanel.Native;
 using static EdgePanel.Native.NativeMethods;
@@ -17,32 +18,71 @@ public sealed class MouseGuard : IDisposable
     private const ulong SignatureMask = 0xFFFFFF00;
     private const ulong MiWpSignature = 0xFF515700;
 
-    private readonly Dispatcher _dispatcher;
     private readonly LowLevelMouseProc _proc; // keep a reference so the GC never collects the callback
     private IntPtr _hook;
+    private Thread? _thread;
+    private uint _threadId;
 
-    // Swapped atomically from the UI thread; read from the hook callback (same thread, but keep it simple).
+    // Written from the UI thread, read by the hook thread.
     private volatile Zone? _zone;
     private POINT _lastOutside;
-    private bool _returnPending;
+    private volatile bool _returnPending;
 
-    public bool Enabled { get; set; } = true;
+    public volatile bool Enabled = true;
 
-    public MouseGuard(Dispatcher dispatcher)
-    {
-        _dispatcher = dispatcher;
-        _proc = HookCallback;
-    }
+    public MouseGuard(Dispatcher dispatcher) => _proc = HookCallback;
 
+    /// <summary>
+    /// The hook runs on its own thread with its own message loop. A low-level hook is called on the
+    /// thread that installed it; on the UI thread any stall (WebView2 work, a dialog, a slow call)
+    /// would freeze the mouse system-wide, and Windows silently removes hooks that time out.
+    /// </summary>
     public void Start()
     {
-        if (_hook != IntPtr.Zero) return;
-        _hook = SetWindowsHookEx(WH_MOUSE_LL, _proc, GetModuleHandle(null), 0);
-        if (_hook == IntPtr.Zero)
-            Log.Error($"SetWindowsHookEx failed: {Marshal.GetLastWin32Error()}");
-        else
+        if (_thread is not null) return;
+        _thread = new Thread(() =>
+        {
+            _threadId = GetCurrentThreadId();
+            _hook = SetWindowsHookEx(WH_MOUSE_LL, _proc, GetModuleHandle(null), 0);
+            if (_hook == IntPtr.Zero)
+            {
+                Log.Error($"SetWindowsHookEx failed: {Marshal.GetLastWin32Error()}");
+                return;
+            }
             Log.Info("Mouse guard hook installed");
+            while (GetMessage(out var msg, IntPtr.Zero, 0, 0) > 0) { /* keep the thread pumping for the hook */ }
+            UnhookWindowsHookEx(_hook);
+            _hook = IntPtr.Zero;
+        })
+        {
+            IsBackground = true,
+            Name = "MouseGuard",
+            Priority = ThreadPriority.AboveNormal,
+        };
+        _thread.Start();
     }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MSG
+    {
+        public IntPtr hwnd;
+        public uint message;
+        public IntPtr wParam;
+        public IntPtr lParam;
+        public uint time;
+        public POINT pt;
+    }
+
+    private const uint WM_QUIT = 0x0012;
+
+    [DllImport("user32.dll")]
+    private static extern int GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+    [DllImport("user32.dll")]
+    private static extern bool PostThreadMessage(uint idThread, uint msg, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("kernel32.dll")]
+    private static extern uint GetCurrentThreadId();
 
     /// <summary>Area to protect, or null to disable (e.g. when the Edge is the only display).</summary>
     public void SetZone(RECT? bounds, POINT fallbackPoint)
@@ -90,7 +130,8 @@ public sealed class MouseGuard : IDisposable
                     {
                         _returnPending = true;
                         var target = _lastOutside;
-                        _dispatcher.BeginInvoke(() =>
+                        // Outside the hook callback: it must return quickly.
+                        ThreadPool.QueueUserWorkItem(_ =>
                         {
                             SetCursorPos(target.X, target.Y);
                             _returnPending = false;
@@ -114,11 +155,9 @@ public sealed class MouseGuard : IDisposable
 
     public void Dispose()
     {
-        if (_hook != IntPtr.Zero)
-        {
-            UnhookWindowsHookEx(_hook);
-            _hook = IntPtr.Zero;
-        }
+        if (_threadId != 0) PostThreadMessage(_threadId, WM_QUIT, IntPtr.Zero, IntPtr.Zero);
+        _thread?.Join(1000);
+        _thread = null;
     }
 
     private sealed record Zone(RECT Bounds);
