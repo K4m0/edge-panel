@@ -190,9 +190,16 @@ public partial class MainWindow : Window
         _edge = edge;
         _mainMonitor = monitors.Where(m => m != edge).OrderByDescending(m => m.IsPrimary).FirstOrDefault();
 
+        // Take charge of the Virtual Stream Deck from startup when a Stream Deck widget exists (Stream Deck
+        // reopens it where it was last docked, on the Edge); give it back when the widget or panel goes away.
+        var manageDeck = edge is not null && !DesktopMode &&
+                         _config.Pages.Any(p => p.Widgets.Any(w => w.Type == "streamDeck"));
+        if (_streamDeck.Managed && !manageDeck) _streamDeck.Release(edge?.Bounds, _mainMonitor?.WorkArea);
+        _streamDeck.Managed = manageDeck;
+        if (manageDeck) _streamDeck.Apply();
+
         if (edge is null || DesktopMode)
         {
-            _streamDeck.Release();
             _mouseGuard.SetZone(null, default);
             if (IsVisible) { Hide(); SetPanelActive(false); }
             return;
@@ -699,7 +706,7 @@ public partial class MainWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
-        _streamDeck.Release();
+        if (_streamDeck.Managed) _streamDeck.Release(_edge?.Bounds, _mainMonitor?.WorkArea);
         _cts.Cancel();
         _watchdog.Stop();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;

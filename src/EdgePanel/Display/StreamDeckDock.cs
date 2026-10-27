@@ -97,9 +97,16 @@ public sealed class StreamDeckDock
     /// re-pins itself. The window is only touched when it is out of place or must be restacked:
     /// moving a layered Qt window every tick makes it flicker.
     /// </summary>
+    /// <summary>
+    /// True while the layout has a Stream Deck widget. Stream Deck reopens its virtual deck at the
+    /// last position it saved, which is usually on the Edge, so from startup the deck must be kept
+    /// parked until its widget's page is shown, not only after the first dock request.
+    /// </summary>
+    public bool Managed { get; set; }
+
     public void Apply(bool restack = false)
     {
-        if (_target is null && _window == IntPtr.Zero) return; // nothing docked, don't go looking
+        if (_target is null && !Managed && _window == IntPtr.Zero) return; // nothing to manage, don't go looking
 
         var hwnd = FindWindow();
         if (hwnd == IntPtr.Zero) return;
@@ -109,7 +116,8 @@ public sealed class StreamDeckDock
 
         if (_target is not { } t)
         {
-            if (current.Left != ParkedX) SetWindowPos(hwnd, IntPtr.Zero, ParkedX, ParkedX, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+            // Unmanaged (no widget): leave the user's deck wherever Stream Deck put it.
+            if (Managed && current.Left != ParkedX) SetWindowPos(hwnd, IntPtr.Zero, ParkedX, ParkedX, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
             return;
         }
 
@@ -122,13 +130,23 @@ public sealed class StreamDeckDock
         if (_fit) FitKeys(t, current);
     }
 
-    /// <summary>Puts the deck back where it was before Edge Panel docked it (on exit or desktop mode).</summary>
-    public void Release()
+    /// <summary>
+    /// Gives the deck back (on exit, desktop mode, or when the widget is removed): to where it was before
+    /// Edge Panel took it, unless that was off-screen or on the Edge (Stream Deck saves the docked spot),
+    /// in which case it goes to the top-left of the main screen's work area.
+    /// </summary>
+    public void Release(RECT? edge = null, RECT? mainWorkArea = null)
     {
         _target = null;
         var hwnd = FindWindow();
-        if (hwnd != IntPtr.Zero && _originalBounds is { } o)
-            SetWindowPos(hwnd, IntPtr.Zero, o.Left, o.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        if (hwnd == IntPtr.Zero) return;
+
+        var o = _originalBounds;
+        var onEdge = o is { } b && edge is { } e && e.Contains(new POINT { X = b.Left + b.Width / 2, Y = b.Top + b.Height / 2 });
+        if (o is { } orig && !onEdge)
+            SetWindowPos(hwnd, IntPtr.Zero, orig.Left, orig.Top, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+        else if (mainWorkArea is { } m)
+            SetWindowPos(hwnd, IntPtr.Zero, m.Left + 48, m.Top + 48, 0, 0, SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
     }
 
     /// <summary>
