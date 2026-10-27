@@ -11,7 +11,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>EdgePanel</AssemblyName>
     <RootNamespace>EdgePanel</RootNamespace>
-    <Version>0.4.0</Version>
+    <Version>0.4.1</Version>
     <ApplicationIcon>Assets\edge-panel.ico</ApplicationIcon>
     <Product>Edge Panel</Product>
     <Description>Lightweight touch dashboard for the Corsair XENEON EDGE</Description>
