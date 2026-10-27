@@ -386,6 +386,7 @@
       case "goto": go(msg.index ?? data?.index ?? data, { report: false }); break;
       case "nav": go(pageIndex + (Number(msg.dir ?? data?.dir) < 0 ? -1 : 1)); break;
       case "dockState": broadcast("dockState", msg); break;
+      case "launchState": broadcast("launchState", msg); break;
       case "visibility": setActive(msg.visible !== false); break;
       default: break;
     }

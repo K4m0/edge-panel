@@ -149,5 +149,37 @@ window.EdgeW = (() => {
     };
   }
 
-  return { h, icon, esc, num, fmt, fraction, clamp, levelColor, ring, isVideo, onResize, hint, tap, hue, sensorCell };
+  /**
+   * Loading state for a button that opens an app. start() shows a spinner and blocks the button;
+   * set(state) follows the host's launchState: "opened" flashes a check, "failed"/"timeout" shakes.
+   * A safety timer unblocks the button if the host never answers.
+   */
+  function launchState(button) {
+    const ov = h("span", "launch-ov", `<span class="launch-spin"></span><span class="launch-done">${icon("check")}</span>`);
+    button.appendChild(ov);
+    let timer = 0;
+    const clear = (after) => {
+      clearTimeout(timer);
+      timer = setTimeout(() => button.classList.remove("launching", "launched", "launch-failed"), after);
+    };
+    return {
+      get busy() { return button.classList.contains("launching"); },
+      start() {
+        button.classList.remove("launched", "launch-failed");
+        button.classList.add("launching");
+        button.setAttribute("aria-busy", "true");
+        clearTimeout(timer);
+        timer = setTimeout(() => this.set("timeout"), 30000);
+      },
+      set(state) {
+        if (state === "opening") { if (!this.busy) this.start(); return; }
+        button.removeAttribute("aria-busy");
+        button.classList.remove("launching");
+        button.classList.add(state === "opened" ? "launched" : "launch-failed");
+        clear(state === "opened" ? 900 : 1400);
+      },
+    };
+  }
+
+  return { h, icon, esc, num, fmt, fraction, clamp, levelColor, ring, isVideo, onResize, hint, tap, hue, sensorCell, launchState };
 })();

@@ -462,7 +462,7 @@ public partial class MainWindow : Window
         if (widget?.Type != "launcher" || index is not { } i) return;
         var apps = DefaultLayout.AppsOf(widget);
         if (i < 0 || i >= apps.Count) return;
-        Launch(Str(apps[i]?["target"]), Str(apps[i]?["args"]), Str(apps[i]?["label"]));
+        _ = LaunchTrackedAsync(widgetId!, i, Str(apps[i]?["target"]), Str(apps[i]?["args"]), Str(apps[i]?["label"]));
     }
 
     private void RunDeckButton(string? widgetId, int? index)
@@ -476,7 +476,7 @@ public partial class MainWindow : Window
         switch (Str(action["kind"]))
         {
             case "launch":
-                Launch(Str(action["target"]), Str(action["args"]), Str(buttons[i]?["label"]));
+                _ = LaunchTrackedAsync(widgetId!, i, Str(action["target"]), Str(action["args"]), Str(buttons[i]?["label"]));
                 break;
             case "keys":
                 PressCombo(value);
@@ -491,7 +491,7 @@ public partial class MainWindow : Window
                 }
                 break;
             case "url":
-                Launch(value, null, Str(buttons[i]?["label"]));
+                _ = LaunchTrackedAsync(widgetId!, i, value, null, Str(buttons[i]?["label"]));
                 break;
             case "text" when !string.IsNullOrEmpty(value):
                 InputSimulator.Type(value);
@@ -502,21 +502,25 @@ public partial class MainWindow : Window
         }
     }
 
-    private static void Launch(string? target, string? args, string? label)
+    private static readonly TimeSpan LaunchTimeout = TimeSpan.FromSeconds(25);
+
+    /// <summary>
+    /// Launches a launcher app or deck button target and tells the panel how it went
+    /// (<c>launchState</c>: opening, then opened / failed / timeout) so the tile can show progress.
+    /// </summary>
+    private async Task LaunchTrackedAsync(string widgetId, int index, string? target, string? args, string? label)
     {
         if (string.IsNullOrWhiteSpace(target)) return;
-        try
-        {
-            var file = Environment.ExpandEnvironmentVariables(target.Trim());
-            // Many apps expect to start in their own folder (games, portable tools).
-            var dir = Path.IsPathRooted(file) && File.Exists(file) ? Path.GetDirectoryName(file) : null;
-            // Never with Edge Panel's admin rights (see ShellLauncher).
-            ShellLauncher.Open(file, args, dir);
-        }
-        catch (Exception ex)
-        {
-            Log.Error($"Launch '{label ?? target}' failed", ex);
-        }
+        void State(string state) => Post(new { type = "launchState", widgetId, index, state });
+
+        State("opening");
+        var file = Environment.ExpandEnvironmentVariables(target.Trim());
+        // Many apps expect to start in their own folder (games, portable tools).
+        var dir = Path.IsPathRooted(file) && File.Exists(file) ? Path.GetDirectoryName(file) : null;
+        // Never with Edge Panel's admin rights (see ShellLauncher).
+        var result = await LaunchWatcher.LaunchAndWaitAsync(() => ShellLauncher.Open(file, args, dir), file, LaunchTimeout);
+        if (result == LaunchResult.Failed) Log.Error($"Launch '{label ?? target}' failed");
+        State(result switch { LaunchResult.Opened => "opened", LaunchResult.Failed => "failed", _ => "timeout" });
     }
 
     private static void PressKey(JsonElement root)

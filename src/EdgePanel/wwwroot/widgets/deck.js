@@ -1,7 +1,7 @@
 "use strict";
 
 (() => {
-  const { h, hint, tap, esc } = window.EdgeW;
+  const { h, hint, tap, esc, launchState } = window.EdgeW;
 
   window.EDGE_WIDGETS.deck = {
     create(el, s, ctx) {
@@ -16,6 +16,7 @@
       root.style.setProperty("--rows", Math.ceil(buttons.length / cols));
       el.appendChild(root);
 
+      const states = [];
       const els = buttons.map((btn, i) => {
         const b = h("button", "deck-btn");
         if (btn.color) b.style.setProperty("--c", btn.color);
@@ -23,8 +24,14 @@
         b.setAttribute("aria-label", label || `Button ${i + 1}`);
         b.innerHTML = `<span class="deck-icon">${btn.icon ? window.edgeIconSvg(btn.icon) : ""}</span>${label ? `<span class="deck-label">${esc(label)}</span>` : ""}`;
         if (!btn.icon && !(btn.action?.kind === "launch")) b.classList.add("no-icon");
+        // Buttons that open something show a loading state until the app is up.
+        const opens = btn.action?.kind === "launch" || btn.action?.kind === "url";
+        const state = opens ? launchState(b) : null;
+        states[i] = state;
         tap(b, () => {
+          if (state?.busy) return;
           b.classList.remove("fired"); void b.offsetWidth; b.classList.add("fired");
+          state?.start();
           ctx.send({ type: "deck", widgetId: ctx.id, index: i });
         });
         root.appendChild(b);
@@ -44,7 +51,12 @@
         });
       };
       paintIcons(ctx.appIcons());
-      return { update(kind, data) { if (kind === "appIcons") paintIcons(data); } };
+      return {
+        update(kind, data) {
+          if (kind === "appIcons") paintIcons(data);
+          else if (kind === "launchState" && data.widgetId === ctx.id) states[data.index]?.set(data.state);
+        },
+      };
     },
   };
 })();

@@ -25,6 +25,7 @@ window.EDGE_ICONS = {
   chevronLeft: "M15.4 5.4 14 4l-8 8 8 8 1.4-1.4L8.8 12z",
   chevronRight: "M8.6 5.4 10 4l8 8-8 8-1.4-1.4 6.6-6.6z",
   plus: "M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6z",
+  check: "M9.5 16.2 5.3 12l-1.4 1.4 5.6 5.6L20.1 8.4 18.7 7z",
   minus: "M5 11h14v2H5z",
 
   // Time
