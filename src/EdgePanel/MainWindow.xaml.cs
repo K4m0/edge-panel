@@ -76,6 +76,8 @@ public partial class MainWindow : Window
         _watchdog.Tick += (_, _) => Watchdog();
 
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged += OnDisplaySettingsChanged;
+        Microsoft.Win32.SystemEvents.SessionSwitch += OnSessionSwitch;
+        Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
     }
 
     /// <summary>
@@ -173,6 +175,25 @@ public partial class MainWindow : Window
     }
 
     private void OnDisplaySettingsChanged(object? sender, EventArgs e) => Dispatcher.BeginInvoke(ScheduleReposition);
+
+    // Waking the displays or unlocking does not always raise WM_DISPLAYCHANGE, yet the cursor may have
+    // ended up on the Edge meanwhile: re-check the layout and send the cursor home.
+    private void OnSessionSwitch(object? sender, Microsoft.Win32.SessionSwitchEventArgs e)
+    {
+        if (e.Reason is Microsoft.Win32.SessionSwitchReason.SessionUnlock or Microsoft.Win32.SessionSwitchReason.ConsoleConnect)
+            Dispatcher.BeginInvoke(AfterWake);
+    }
+
+    private void OnPowerModeChanged(object? sender, Microsoft.Win32.PowerModeChangedEventArgs e)
+    {
+        if (e.Mode == Microsoft.Win32.PowerModes.Resume) Dispatcher.BeginInvoke(AfterWake);
+    }
+
+    private void AfterWake()
+    {
+        ScheduleReposition();
+        _mouseGuard.ReturnCursor();
+    }
 
     private void ScheduleReposition()
     {
@@ -714,6 +735,8 @@ public partial class MainWindow : Window
         _cts.Cancel();
         _watchdog.Stop();
         Microsoft.Win32.SystemEvents.DisplaySettingsChanged -= OnDisplaySettingsChanged;
+        Microsoft.Win32.SystemEvents.SessionSwitch -= OnSessionSwitch;
+        Microsoft.Win32.SystemEvents.PowerModeChanged -= OnPowerModeChanged;
         _hotkeys?.Dispose();
         _mouseGuard.Dispose();
         base.OnClosed(e);

@@ -26,7 +26,14 @@ public sealed class MouseGuard : IDisposable
     // Written from the UI thread, read by the hook thread.
     private volatile Zone? _zone;
     private POINT _lastOutside;
+    private POINT _fallback;
     private volatile bool _returnPending;
+
+    // Consecutive attempts to send the cursor back that left it on the Edge. After display sleep, a lock
+    // screen or a topology change, SetCursorPos can fail or land on the Edge again; past a few failures
+    // the guard lets the mouse through so the cursor is never trapped.
+    private const int MaxFailedReturns = 3;
+    private volatile int _failedReturns;
 
     public volatile bool Enabled = true;
 
@@ -89,6 +96,29 @@ public sealed class MouseGuard : IDisposable
     {
         _zone = bounds is { } b ? new Zone(b) : null;
         _lastOutside = fallbackPoint;
+        _fallback = fallbackPoint;
+        _failedReturns = 0;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromPoint(POINT pt, uint dwFlags);
+    private const uint MONITOR_DEFAULTTONULL = 0;
+
+    /// <summary>Where to send the cursor: the last spot outside the Edge, if it is still on a live display.</summary>
+    private POINT ReturnTarget(Zone zone)
+    {
+        var p = _lastOutside;
+        if (!zone.Bounds.Contains(p) && MonitorFromPoint(p, MONITOR_DEFAULTTONULL) != IntPtr.Zero) return p;
+        return _fallback;
+    }
+
+    private void SendCursorBack(Zone zone)
+    {
+        var target = ReturnTarget(zone);
+        var moved = SetCursorPos(target.X, target.Y) && GetCursorPos(out var now) && !zone.Bounds.Contains(now);
+        if (moved) _failedReturns = 0;
+        else if (++_failedReturns == MaxFailedReturns)
+            Log.Info("Mouse guard: cursor could not leave the Edge; letting the mouse through until it does");
     }
 
     /// <summary>
@@ -100,7 +130,7 @@ public sealed class MouseGuard : IDisposable
         var zone = _zone;
         if (zone is null) return;
         if (GetCursorPos(out var current) && zone.Bounds.Contains(current))
-            SetCursorPos(_lastOutside.X, _lastOutside.Y);
+            SendCursorBack(zone);
     }
 
     private IntPtr HookCallback(int nCode, IntPtr wParam, IntPtr lParam)
@@ -121,19 +151,25 @@ public sealed class MouseGuard : IDisposable
                     if (!inside)
                     {
                         _lastOutside = info.pt;
+                        _failedReturns = 0;
                         return CallNextHookEx(_hook, nCode, wParam, lParam);
                     }
 
+                    var cursorInside = GetCursorPos(out var current) && zone.Bounds.Contains(current);
+
+                    // Sending it back keeps failing: let the mouse move so the user can walk it out.
+                    if (cursorInside && _failedReturns >= MaxFailedReturns)
+                        return CallNextHookEx(_hook, nCode, wParam, lParam);
+
                     // A touch on the Edge parks the cursor there. When the real mouse moves
                     // again, send the cursor back to where the user last had it.
-                    if (GetCursorPos(out var current) && zone.Bounds.Contains(current) && !_returnPending)
+                    if (cursorInside && !_returnPending)
                     {
                         _returnPending = true;
-                        var target = _lastOutside;
                         // Outside the hook callback: it must return quickly.
                         ThreadPool.QueueUserWorkItem(_ =>
                         {
-                            SetCursorPos(target.X, target.Y);
+                            SendCursorBack(zone);
                             _returnPending = false;
                         });
                     }
